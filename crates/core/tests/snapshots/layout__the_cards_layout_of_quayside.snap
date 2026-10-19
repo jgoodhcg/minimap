@@ -1,0 +1,33 @@
+---
+source: crates/core/tests/layout.rs
+expression: "format!(\"{} x {} cells, {} cards, {} headers, {} card rows, tallest {}\\n{}\\n{}\",\nlayout.w, layout.h, layout.tiles.len(), layout.headers.len(), rows,\nlayout.tile_h.iter().max().unwrap(), first.join(\"\\n\"), heads.join(\"\\n\"))"
+---
+3604 x 859 cells, 2585 cards, 468 headers, 22848 card rows, tallest 122
+   22   118   12  README.md (151)
+    0   129    5  CHANGELOG.md (57)
+    0   135    7  CONTRIBUTING.md (84)
+    0   118   10  AGENTS.md (146)
+   66   128    5  workspace.edn (57)
+   22   134    3  deps.edn (17)
+   22   131    2  bb.edn (13)
+   66   123    4  tests.edn (41)
+   66   118    4  shadow-cljs.edn (41)
+   44   141    3  package.json (24)
+   44   118   22  package-lock.json (12487)
+   66   138    2  .gitignore (14)
+   66   141    4  .tool-versions (40)
+   66   134    3  .editorconfig (26)
+   22   138    3  justfile (30)
+ 3511   362    3  .github/workflows/check.yml (17)
+ 3555   365    4  .github/workflows/test-components.yml (31)
+ 3555   358    6  .github/workflows/test-bases.yml (64)
+ 3511   366    3  .github/workflows/deploy-api.yml (28)
+ 3533   354    5  .github/workflows/deploy-worker.yml (49)
+    0     0  3604   859  118  1601.8  quayside/
+    0   149  1202   710   60   801.3  bases/
+    2   209   304   363   24   304.0  api/
+    4   238   185   175    4    43.5  src/quayside/api/
+    6   291   112   122    4    49.8  handlers/
+  121   291    68    32    2    20.9  interceptors/
+  192   238   114   107    3    32.6  resources/api/
+  194   254   112    55    7    74.7  email/

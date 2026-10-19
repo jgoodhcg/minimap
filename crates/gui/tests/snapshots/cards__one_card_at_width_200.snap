@@ -1,0 +1,10 @@
+---
+source: crates/gui/tests/cards.rs
+expression: "format!(\"{} ({} lines, {} x {} points)\\n{}\", map.tree.files[f].path,\nmap.index.files[f].lines, card.width(), card.height(), lines.join(\"\\n\"))"
+---
+components/berth/src/quayside/berth/core.clj (547 lines, 200 x 707.1428 points)
+Card Shape [0.000 0.000 1.000 1.000] size 0 #161e27 fill
+Icon Shape [0.060 0.002 0.155 0.029] size 19.047619 #98c577 glyph U+E768
+Count Shape [0.790 0.000 0.940 0.030] size 16.666666 #7b8896 "547"
+Name Shape [0.155 0.000 0.555 0.030] size 16.666666 #d4dce4 "core.clj"
+Shape Shape [0.060 0.030 0.940 0.951] size 0 #71935f 64 bars

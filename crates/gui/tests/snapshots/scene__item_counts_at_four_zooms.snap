@@ -1,0 +1,24 @@
+---
+source: crates/gui/tests/scene.rs
+expression: "out.join(\"\\n\")"
+---
+fit, zoom 0.0538
+  Block Block: 2583
+  Header Block: 127
+  Rule Block: 467
+card width 12, zoom 0.0714
+  Block Block: 2018
+  Header Block: 136
+  Rule Block: 404
+card width 40, zoom 0.2381
+  Card Name: 216
+  Header Name: 46
+  Icon Name: 213
+  Name Name: 209
+  Rule Name: 46
+card width 130, zoom 0.7738
+  Card Shape: 9
+  Count Shape: 6
+  Icon Shape: 6
+  Loading Shape: 8
+  Name Shape: 6

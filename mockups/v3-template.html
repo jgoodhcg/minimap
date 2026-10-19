@@ -1,0 +1,832 @@
+<title>Minimap v3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: dark;
+    --ground: #0b0f13;
+    --pane: #10161c;
+    --titlebar: #0d1318;
+    --rule: #26313c;
+    --ink: #d4dce4;
+    --ink2: #aeb9c4;
+    --dim: #7b8896;
+    --faint: #46525e;
+    --focus: #f2d15c;
+    --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+    --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font: 14px/1.5 var(--sans); }
+  .wrap { padding-inline: 16px; padding-block: 12px 16px; max-width: 1900px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
+  .bar { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; }
+  .bar h1 { font: 600 17px/1.2 var(--sans); margin: 0; letter-spacing: .01em; }
+  .bar .sub { color: var(--dim); font: 12px/1.4 var(--mono); }
+  .ctrls { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+  button { font: 12px/1 var(--mono); color: var(--ink2); background: var(--pane); border: 1px solid var(--rule); border-radius: 3px; padding: 6px 10px; cursor: pointer; }
+  button:hover { color: var(--ink); border-color: var(--faint); }
+  button:focus-visible, canvas:focus-visible { outline: 1px solid var(--focus); outline-offset: 1px; }
+  .pane { background: var(--pane); border: 1px solid var(--rule); display: flex; flex-direction: column; height: clamp(520px, calc(100dvh - 72px), 1150px); min-width: 0; }
+  .ptitle { display: flex; align-items: center; gap: 8px; padding: 4px 10px; border-bottom: 1px solid var(--rule); font: 11px/1.4 var(--mono); color: var(--dim); background: var(--titlebar); white-space: nowrap; overflow: hidden; }
+  .ptitle b { color: var(--ink2); font-weight: 600; }
+  .ptitle .sp { flex: 1; }
+  .mapwrap { flex: 1; min-height: 0; position: relative; }
+  #map { position: absolute; inset: 0; display: block; touch-action: none; }
+  @media (max-width: 700px) { .ctrls { margin-left: 0; } .pane { height: 78vh; } }
+</style>
+
+<div class="wrap">
+  <header class="bar">
+    <h1>minimap</h1>
+    <span class="sub" id="sub">TUI mockup v3 · generated Clojure monorepo</span>
+    <div class="ctrls"><button id="keys">Keys</button></div>
+  </header>
+  <section class="pane">
+    <div class="ptitle"><b>minimap</b><span>~/code/quayside</span><span class="sp"></span><span>click the map, then use keys · ? for help</span></div>
+    <div class="mapwrap"><canvas id="map" tabindex="0" aria-label="Codebase map. Click to focus, then use WASD to pan, arrow keys to move between files, Escape to deselect."></canvas></div>
+  </section>
+</div>
+
+<script type="application/json" id="repo-data">__DATA__</script>
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+const DATA = JSON.parse($('#repo-data').textContent);
+
+/* ---------- data ---------- */
+const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+const DEC = new Int8Array(128); for (let i = 0; i < 64; i++) DEC[B64.charCodeAt(i)] = i;
+const files = DATA.files.map((f, i) => {
+  const s = f.p.lastIndexOf('/'), name = f.p.slice(s + 1), d = name.lastIndexOf('.');
+  f.i = i; f.name = name; f.dir = s < 0 ? '' : f.p.slice(0, s); f.ext = d > 0 ? name.slice(d + 1).toLowerCase() : '';
+  f.top = s < 0 ? '' : f.p.slice(0, f.p.indexOf('/'));
+  return f;
+});
+const N = files.length, byPath = new Map(files.map(f => [f.p, f]));
+const TOTAL_LINES = files.reduce((a, f) => a + (f.n || 0), 0);
+
+/* ---------- tree ---------- */
+const root = { path: '', name: DATA.root, files: [], kids: [], parent: null };
+const nodes = new Map([['', root]]);
+function ensure(p) {
+  let n = nodes.get(p); if (n) return n;
+  const k = p.lastIndexOf('/'), par = ensure(k < 0 ? '' : p.slice(0, k));
+  n = { path: p, name: p.slice(k + 1), files: [], kids: [], parent: par };
+  par.kids.push(n); nodes.set(p, n); return n;
+}
+files.forEach(f => ensure(f.dir).files.push(f));
+const cmp = (a, b) => a < b ? -1 : a > b ? 1 : 0;
+// A path is hidden when a segment starts with '.'. Hidden files sort last, so hiding them moves no tile.
+const hid = f => f.p.split('/').some(s => s[0] === '.') ? 1 : 0;
+(function sortRec(n) { n.kids.sort((a, b) => cmp(a.name, b.name)); n.files.sort((a, b) => ((a.ig | 0) - (b.ig | 0)) || (hid(a) - hid(b)) || cmp(a.name, b.name)); n.kids.forEach(sortRec); })(root);
+(function compact(n) {
+  n.kids.forEach(compact);
+  n.kids = n.kids.map(k => { while (k.files.length === 0 && k.kids.length === 1) { const c = k.kids[0]; c.name = k.name + '/' + c.name; k = c; } return k; });
+})(root);
+let DIRS = 0;
+(function depth(n, d) { n.depth = d; DIRS++; n.files.forEach(f => f.node = n); n.kids.forEach(k => depth(k, d + 1)); })(root, 0);
+$('#sub').textContent = `TUI mockup v3 · generated Clojure monorepo “${DATA.root}” · ${N.toLocaleString()} files · ${DIRS} directories`;
+
+/* ---------- districts (top-level directories) ---------- */
+const DPAL = ['#7f98b3', '#8fa98f', '#b5a47c', '#b08878', '#9d8bb0', '#7aa5a5', '#a9a97a', '#8e93a8', '#a58f9e', '#8aa0b8'];
+const DIST = new Map();
+{
+  const counts = new Map();
+  files.forEach(f => { const k = f.top || '(root files)'; counts.set(k, (counts.get(k) || 0) + 1); });
+  [...counts.entries()].sort((a, b) => b[1] - a[1]).forEach(([k, n], j) => DIST.set(k, { name: k, count: n, color: k === '(root files)' ? '#6b7680' : (DPAL[j] || '#6b7680') }));
+}
+const distOf = f => DIST.get(f.top || '(root files)');
+
+/* ---------- layout: districts (shelves of stacked columns), one tile size ---------- */
+const TW = 22, TH = 3, IND = 2, GX = 3, GY = 1, VG = 1;
+function size(n) {
+  if (n.sz) return n.sz;
+  const nf = n.files.length, ind = n.depth ? IND : 0;
+  const fw = nf ? n.fc * TW : 0, fh = nf ? Math.ceil(nf / n.fc) * TH : 0;
+  let sw = 0, sh = 0;
+  n.shelves.forEach((shelf, si) => {
+    let w = 0, h = 0;
+    shelf.forEach((col, j) => {
+      let cw = 0, chh = 0;
+      col.forEach((k, q) => { const s = size(k); cw = Math.max(cw, s.w); chh += (q ? VG : 0) + s.h; });
+      w += (j ? GX : 0) + cw; h = Math.max(h, chh);
+    });
+    sw = Math.max(sw, w); sh += (si ? GY : 0) + h;
+  });
+  return (n.sz = { w: Math.max(TW, ind + Math.max(fw, sw)), h: 1 + fh + (nf && n.shelves.length ? GY : 0) + sh });
+}
+function plan(n) {
+  n.kids.forEach(plan);
+  const nf = n.files.length; n.fc = nf ? Math.ceil(Math.sqrt(nf * 0.7)) : 0;
+  const PX = 8, PY = 18, gx = GX * PX, vg = VG * PY;
+  const ks = n.kids.map(k => { const s = size(k); return { k, w: s.w * PX, h: s.h * PY }; });
+  ks.sort((a, b) => (b.h - a.h) || cmp(a.k.name, b.k.name));
+  const fwpx = nf ? n.fc * TW * PX : 0;
+  let area = ks.reduce((a, s) => a + s.w * s.h, 0);
+  if (nf) area += fwpx * Math.ceil(nf / n.fc) * TH * PY;
+  const target = Math.max(0, fwpx, ...ks.map(s => s.w), Math.sqrt(area * (n.depth ? 1.5 : 3.2)));
+  const colW = c => Math.max(...c.map(s => s.w));
+  const colH = c => c.reduce((a, s, q) => a + (q ? vg : 0) + s.h, 0);
+  const shelfW = sh => sh.reduce((a, c, j) => a + (j ? gx : 0) + colW(c), 0);
+  const shelfH = sh => Math.max(...sh.map(colH));
+  const shelves = []; let shelf = null;
+  for (const s of ks) {
+    if (!shelf) { shelf = [[s]]; shelves.push(shelf); continue; }
+    const H = shelfH(shelf), last = shelf.length - 1;
+    const col = shelf.find((c, j) => colH(c) + vg + s.h <= H && (s.w <= colW(c) || (j === last && shelfW(shelf) - colW(c) + s.w <= target)));
+    if (col) { col.push(s); continue; }
+    if (shelfW(shelf) + gx + s.w <= target) { shelf.push([s]); continue; }
+    shelf = [[s]]; shelves.push(shelf);
+  }
+  n.shelves = shelves.map(sh => sh.map(c => c.map(s => s.k))); n.sz = null;
+}
+let LAY = null;
+function lay() {
+  if (LAY) return LAY;
+  plan(root);
+  const L = { tx: new Int32Array(N), ty: new Int32Array(N), headers: [], w: 0, h: 0 };
+  (function place(n, x, y) {
+    const s = size(n), ind = n.depth ? IND : 0;
+    L.headers.push({ x, y, w: s.w, h: s.h, depth: n.depth, node: n });
+    let cy = y + 1;
+    n.files.forEach((f, i) => { L.tx[f.i] = x + ind + (i % n.fc) * TW; L.ty[f.i] = cy + Math.floor(i / n.fc) * TH; });
+    if (n.files.length) cy += Math.ceil(n.files.length / n.fc) * TH + (n.shelves.length ? GY : 0);
+    n.shelves.forEach((shelf, si) => {
+      if (si) cy += GY;
+      let cx = x + ind, sh = 0;
+      for (const col of shelf) {
+        let yy = cy, cw = 0;
+        col.forEach((k, q) => { if (q) yy += VG; const ks = size(k); place(k, cx, yy); yy += ks.h; cw = Math.max(cw, ks.w); });
+        cx += cw + GX; sh = Math.max(sh, yy - cy);
+      }
+      cy += sh;
+    });
+  })(root, 0, 0);
+  const s = size(root); L.w = s.w; L.h = s.h;
+  return (LAY = L);
+}
+
+/* ---------- colors ---------- */
+const C = {
+  pane: '#10161c', tile: '#161e27', tileHi: '#1e2a36', cursor: '#2d4155', white: '#f3f6f9',
+  ink: '#d4dce4', ink2: '#aeb9c4', dim: '#7b8896', faint: '#46525e', rule: '#26313c', label: '#8d9aa8',
+  read: '#6cb6d9', read2: '#3f6f86', grep: '#c9a14a', grep2: '#7d6632', edit: '#e2725b', edit2: '#8e4a3c',
+  focus: '#f2d15c', focusBg: '#302a10', mine: '#86c07a', ign: '#9a8fd0', search: '#28402f',
+  bar: '#0b1015', side: '#0e1419', pop: '#1a222b', mm2: '#71879b',
+  miniBg: '#0b1015', vpIn: '#1a2632', vpEdge: '#3a526a',
+};
+const TYPE = {
+  clj: '#9fb7cf', edn: '#b3a6cf', md: '#d0c49f', ts: '#9fcfb8', py: '#cfae9f', sql: '#b2cf9f', yml: '#b8bec4',
+  web: '#cf9fbd', sh: '#c4c49f', other: '#98a3ad', bin: '#66717c',
+};
+const EXT = { clj: 'clj', cljs: 'clj', cljc: 'clj', bb: 'clj', edn: 'edn', md: 'md', ts: 'ts', tsx: 'ts', js: 'ts', jsx: 'ts', mjs: 'ts', py: 'py', sql: 'sql', yml: 'yml', yaml: 'yml', json: 'yml', toml: 'yml', tf: 'yml', tfvars: 'yml', html: 'web', css: 'web', scss: 'web', xml: 'web', sh: 'sh' };
+const tcol = f => TYPE[f.b ? 'bin' : (EXT[f.ext] || 'other')];
+const AGE = [[14, '#4a3718', '#d9a54a', '<2w'], [60, '#3a2c16', '#b8893c', '<2mo'], [365, '#2a2216', '#8a6a34', '<1y']];
+const CHURN = [[60, '#173a5a', '#6aa9e0', '60+'], [25, '#15304a', '#5188b8', '25+'], [10, '#13263a', '#3d6a90', '10+']];
+function heat(f) {
+  const h = S.layers.heat; if (!h) return null;
+  if (h === 'age') { if (f.a1 == null) return null; for (const r of AGE) if (f.a1 <= r[0]) return r; return null; }
+  const c = f.c || 0; for (const r of CHURN) if (c >= r[0]) return r; return null;
+}
+const trailCol = t => { const fresh = S.trailSeq - t.seq < 3; return t.kind === 'edit' ? (fresh ? C.edit : C.edit2) : t.kind === 'read' ? (fresh ? C.read : C.read2) : (fresh ? C.grep : C.grep2); };
+
+/* ---------- state ---------- */
+const S = {
+  camX: 0, camY: 0, cursor: -1, hover: -1,
+  layers: { trail: true, focus: true, mine: true, heat: null, ignored: false },
+  trail: new Map(), trailSeq: 0, focus: null, mine: new Map(), paneSeq: 2, pane: null,
+  outline: false, outlineSel: 0, outlineTop: 0, search: null, help: false, msg: '', msgT: 0, anim: 0,
+};
+
+/* ---------- text helpers ---------- */
+const fit = (s, w) => w <= 0 ? '' : s.length <= w ? s : w <= 1 ? s.slice(0, w) : s.slice(0, w - 1) + '…';
+const fitLeft = (s, w) => w <= 0 ? '' : s.length <= w ? s : '…' + s.slice(s.length - w + 1);
+const fitMid = (s, w) => { if (w <= 0) return ''; if (s.length <= w) return s; if (w < 5) return fit(s, w); const a = Math.ceil((w - 1) * 0.6), b = w - 1 - a; return s.slice(0, a) + '…' + s.slice(s.length - b); };
+function wrap(s, w) { const out = []; let line = ''; for (const word of s.split(/\s+/)) { if (!word) continue; if (line && (line + ' ' + word).length > w) { out.push(line); line = word; } else line = line ? line + ' ' + word : word; while (line.length > w) { out.push(line.slice(0, w)); line = line.slice(w); } } if (line) out.push(line); return out; }
+const ago = d => d == null ? '?' : d < 1 ? 'today' : d < 14 ? d + 'd' : d < 60 ? Math.round(d / 7) + 'w' : d < 730 ? Math.round(d / 30) + 'mo' : Math.round(d / 365) + 'y';
+const agoPhrase = d => d != null && d < 1 ? 'today' : `${ago(d)} ago`;
+const agoMin = ts => { const m = Math.max(1, Math.round((Date.now() - ts) / 60000)); return m < 60 ? m + 'm ago' : Math.round(m / 60) + 'h ago'; };
+const kfmt = n => n >= 1000 ? (n / 1000).toFixed(n >= 100000 ? 0 : 1) + 'k' : String(n);
+const describe = s => s.replace(/^[a-z]+(\([^)]*\))?!?:\s*/i, '');
+const CIRC = '⓪①②③④⑤⑥⑦⑧⑨';
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---------- file shape (braille cells, whole file) ---------- */
+const BIT = [[0x01, 0x08], [0x02, 0x10], [0x04, 0x20], [0x40, 0x80]];
+const MMC = new Map();
+function fileShape(f, cols, rows) {
+  const key = `${f.i}:${cols}:${rows}`;
+  let m = MMC.get(key); if (m) return m;
+  const n = f.n, dotsH = rows * 4, dotsW = cols * 2, R = f.m.length / 2;
+  const scale = Math.max(1, n / dotsH), cpd = 126 / dotsW;
+  const cells = new Uint8Array(cols * rows), used = Math.min(dotsH, Math.ceil(n / scale));
+  for (let dy = 0; dy < used; dy++) {
+    const l0 = dy * scale, l1 = Math.min(n, (dy + 1) * scale);
+    const d0 = Math.floor(l0 / n * R), d1 = Math.max(d0 + 1, Math.ceil(l1 / n * R));
+    let ind = 999, len = 0;
+    for (let d = d0; d < Math.min(d1, R); d++) { const L = DEC[f.m.charCodeAt(2 * d + 1)] * 2; if (!L) continue; len = Math.max(len, L); ind = Math.min(ind, DEC[f.m.charCodeAt(2 * d)] * 2); }
+    if (!len) continue;
+    for (let dx = 0; dx < dotsW; dx++) { const cx = dx * cpd + cpd / 2; if (cx >= ind && cx < len) cells[(dy >> 2) * cols + (dx >> 1)] |= BIT[dy & 3][dx & 1]; }
+  }
+  m = { cells, scale, rowsUsed: Math.max(1, Math.ceil(used / 4)) }; MMC.set(key, m); return m;
+}
+
+/* ---------- cell buffer ---------- */
+const cv = $('#map'), ctx = cv.getContext('2d');
+const FPX = 13, FAM = '"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace';
+let CW = 7.8, CH = 17, COLS = 0, ROWS = 0, BCH, BFG, BBG, BB, CLIP = [0, 0, 0, 0];
+const HITS = [];
+function measure() { ctx.font = `400 ${FPX}px ${FAM}`; CW = ctx.measureText('MMMMMMMMMM').width / 10 || 7.8; }
+function alloc() { const n = COLS * ROWS; BCH = new Array(n); BFG = new Array(n); BBG = new Array(n); BB = new Uint8Array(n); }
+function clearBuf() { BCH.fill(' '); BFG.fill(C.ink); BBG.fill(null); BB.fill(0); }
+function clip(x0, y0, x1, y1) { CLIP = [Math.max(0, x0), Math.max(0, y0), Math.min(COLS, x1), Math.min(ROWS, y1)]; }
+function put(x, y, ch, fg, bg, b) {
+  if (x < CLIP[0] || y < CLIP[1] || x >= CLIP[2] || y >= CLIP[3]) return;
+  const i = y * COLS + x;
+  if (ch != null) BCH[i] = ch; if (fg) BFG[i] = fg; if (bg) BBG[i] = bg; if (b !== undefined) BB[i] = b ? 1 : 0;
+}
+function txt(x, y, s, fg, bg, max, b) { const n = Math.min(s.length, max == null ? s.length : max); for (let k = 0; k < n; k++) put(x + k, y, s[k], fg, bg, !!b); return n; }
+function fillc(x, y, w, h, bg) { for (let j = 0; j < h; j++) for (let k = 0; k < w; k++) put(x + k, y + j, ' ', C.ink, bg, false); }
+function box(x, y, w, h, border, bg) {
+  fillc(x, y, w, h, bg);
+  for (let k = 1; k < w - 1; k++) { put(x + k, y, '─', border); put(x + k, y + h - 1, '─', border); }
+  for (let j = 1; j < h - 1; j++) { put(x, y + j, '│', border); put(x + w - 1, y + j, '│', border); }
+  put(x, y, '┌', border); put(x + w - 1, y, '┐', border); put(x, y + h - 1, '└', border); put(x + w - 1, y + h - 1, '┘', border);
+}
+// Braille cells are drawn as dots so they look the same without a braille-capable font.
+const DOTX = [0.26, 0.66], DOTY = [0.15, 0.37, 0.59, 0.81];
+function drawBraille(v, px, py) {
+  const d = Math.max(1.5, Math.round(CW * 0.26 * 2) / 2);
+  for (let r = 0; r < 4; r++) for (let c = 0; c < 2; c++) if (v & BIT[r][c]) ctx.fillRect(Math.round(px + CW * DOTX[c] - d / 2), Math.round(py + CH * DOTY[r] - d / 2), d, d);
+}
+function flush() {
+  const dpr = window.devicePixelRatio || 1, W = cv.width / dpr, H = cv.height / dpr;
+  ctx.fillStyle = C.pane; ctx.fillRect(0, 0, W, H);
+  for (let y = 0; y < ROWS; y++) {
+    let x = 0;
+    while (x < COLS) {
+      const bg = BBG[y * COLS + x]; if (!bg) { x++; continue; }
+      let e = x + 1; while (e < COLS && BBG[y * COLS + e] === bg) e++;
+      ctx.fillStyle = bg; const px = Math.floor(x * CW); ctx.fillRect(px, y * CH, Math.ceil(e * CW) - px, CH); x = e;
+    }
+  }
+  const groups = new Map();
+  for (let i = 0; i < BCH.length; i++) { if (BCH[i] === ' ') continue; const key = BFG[i] + (BB[i] ? '|b' : ''); let g = groups.get(key); if (!g) groups.set(key, g = []); g.push(i); }
+  ctx.textBaseline = 'middle';
+  for (const [key, g] of groups) {
+    const bold = key.endsWith('|b'); ctx.font = `${bold ? 600 : 400} ${FPX}px ${FAM}`; ctx.fillStyle = bold ? key.slice(0, -2) : key;
+    for (const i of g) {
+      const code = BCH[i].charCodeAt(0), px = (i % COLS) * CW, py = ((i / COLS) | 0) * CH;
+      if (code >= 0x2800 && code <= 0x28ff) drawBraille(code - 0x2800, px, py);
+      else ctx.fillText(BCH[i], px, py + CH / 2 + 1);
+    }
+  }
+}
+
+/* ---------- view geometry ---------- */
+// The right column is always on screen, so selecting a file never moves the map.
+function view() { const IW = COLS < 90 ? 0 : COLS >= 150 ? 54 : COLS >= 115 ? 48 : 40; return { vy0: 1, vw: COLS - IW, vh: ROWS - 2, IW }; }
+function clampCam() {
+  const L = lay(), V = view();
+  S.camX = Math.max(-2, Math.min(S.camX, L.w - V.vw + 2));
+  S.camY = Math.max(-1, Math.min(S.camY, L.h - V.vh + 1));
+}
+function nearestToCenter() {
+  const L = lay(), V = view(), mx = S.camX + V.vw / 2, my = S.camY + V.vh / 2;
+  let best = 0, bd = Infinity;
+  for (let i = 0; i < N; i++) { if (files[i].ig && !S.layers.ignored) continue; const dx = (L.tx[i] - mx) / TW, dy = (L.ty[i] - my) / TH, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = i; } }
+  return best;
+}
+function ensureVisible(i) {
+  if (i < 0) return;
+  const L = lay(), V = view(), sx = L.tx[i] - S.camX, sy = L.ty[i] - S.camY;
+  if (sx < 1) S.camX = L.tx[i] - 1; else if (sx + TW > V.vw - 1) S.camX = L.tx[i] + TW - V.vw + 1;
+  if (sy < 1) S.camY = L.ty[i] - 1; else if (sy + TH > V.vh - 1) S.camY = L.ty[i] + TH - V.vh + 1;
+}
+function centerOnRect(x0, y0, x1, y1, animate) {
+  const V = view(), tx = Math.round((x0 + x1) / 2 - V.vw / 2), ty = Math.round((y0 + y1) / 2 - V.vh / 2);
+  if (animate && !reduced) animateCam(tx, ty); else { S.camX = tx; S.camY = ty; clampCam(); render(); }
+}
+function centerOn(i, animate) { const L = lay(); centerOnRect(L.tx[i], L.ty[i], L.tx[i] + TW, L.ty[i] + TH, animate); }
+function animateCam(tx, ty) {
+  cancelAnimationFrame(S.anim);
+  const V = view(), L = lay();
+  tx = Math.max(-2, Math.min(tx, L.w - V.vw + 2)); ty = Math.max(-1, Math.min(ty, L.h - V.vh + 1));
+  const sx = S.camX, sy = S.camY, t0 = performance.now(), D = 320;
+  const step = t => { const k = Math.min(1, (t - t0) / D), e = 1 - Math.pow(1 - k, 3); S.camX = Math.round(sx + (tx - sx) * e); S.camY = Math.round(sy + (ty - sy) * e); draw(); if (k < 1) S.anim = requestAnimationFrame(step); };
+  S.anim = requestAnimationFrame(step);
+}
+
+/* ---------- drawing ---------- */
+let raf = 0;
+function render() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; draw(); }); }
+function draw() {
+  if (!COLS || !BCH) return;
+  clearBuf(); HITS.length = 0;
+  const V = view(), L = lay();
+  drawMap(L, V); drawOverlay(L, V);
+  if (V.IW) drawSide(V, L);
+  drawTop(V); drawStatus();
+  if (S.help) drawHelp();
+  flush();
+}
+
+// Headers show the path inside the district: the parent part dim, the directory itself bright.
+function drawHeader(h, sx, sy) {
+  const n = h.node;
+  if (h.depth === 0) { txt(sx, sy, fit(DATA.root + '/', h.w), C.focus, null, h.w, true); return; }
+  const dist = DIST.get(n.path.split('/')[0]);
+  if (h.depth === 1) {
+    const t = fit(n.name + '/', h.w), k = txt(sx, sy, t, dist ? dist.color : C.ink, null, h.w, true);
+    for (let x = k + 1; x < h.w - 1; x++) put(sx + x, sy, '━', dist ? dist.color + '55' : C.rule);
+    return;
+  }
+  const rel = n.path.slice(n.path.indexOf('/') + 1), own = n.name + '/', parent = rel.slice(0, rel.length - n.name.length);
+  const full = fitLeft(parent + own, h.w - 1), cut = Math.max(0, full.length - own.length);
+  txt(sx, sy, full.slice(0, cut), C.faint, null);
+  txt(sx + cut, sy, full.slice(cut), h.depth === 2 ? C.ink : C.ink2, null, undefined, h.depth === 2);
+  for (let x = full.length + 1; x < h.w - 1; x++) put(sx + x, sy, '─', C.rule);
+}
+function drawMap(L, V) {
+  const y0 = V.vy0, x1 = V.vw, y1 = V.vy0 + V.vh;
+  clip(0, y0, x1, y1);
+  for (const h of L.headers) {
+    const sx = h.x - S.camX, sy = y0 + h.y - S.camY;
+    if (sy < y0 || sy >= y1 || sx >= x1 || sx + h.w <= 0) continue;
+    drawHeader(h, sx, sy);
+  }
+  for (let i = 0; i < N; i++) {
+    const sx = L.tx[i] - S.camX, sy = y0 + L.ty[i] - S.camY;
+    if (sx >= x1 || sy >= y1 || sx + TW <= 0 || sy + TH <= y0) continue;
+    drawTile(files[i], sx, sy);
+  }
+}
+function drawTile(f, x, y) {
+  if (f.ig && !S.layers.ignored) return; // reserved slot stays empty
+  const tr = S.layers.trail ? S.trail.get(f.i) : null, fo = S.layers.focus && S.focus ? S.focus.idx.get(f.i) : null;
+  const mi = S.layers.mine && S.mine.has(f.i), cur = f.i === S.cursor, hov = f.i === S.hover, sm = S.search && S.search.set.has(f.i);
+  const W = TW - 1, ht = heat(f);
+  let bg = ht ? ht[1] : C.tile; if (hov) bg = C.tileHi; if (sm) bg = C.search; if (fo) bg = C.focusBg; if (cur) bg = C.cursor;
+  fillc(x, y, W, TH - 1, bg);
+  const mark = tr ? trailCol(tr) : null;
+  if (fo) put(x, y, CIRC[fo.n] || '◆', C.focus, bg, true); else if (mark) { put(x, y, '▌', mark, bg); put(x, y + 1, '▌', mark, bg); }
+  const nameCol = f.ig ? C.ign : fo ? C.focus : cur ? C.white : tcol(f);
+  txt(x + 1, y, fitMid(f.name, W - 3), nameCol, bg, W - 3, !!(fo || cur));
+  if (mi) put(x + W - 1, y, '●', C.mine, bg);
+  let meta = f.ig ? 'ignored, allowlisted' : f.b ? 'binary' : `${f.n} lines`;
+  if (!f.ig) meta += S.layers.heat === 'churn' ? ` · ${f.c || 0} commits` : f.a1 != null ? ` · ${ago(f.a1)}` : '';
+  if (tr && tr.kind === 'edit') meta = 'edited · ' + meta;
+  txt(x + 1, y + 1, fit(meta, W - 2), tr && tr.kind === 'edit' ? C.edit : C.dim, bg, W - 2);
+}
+function drawOverlay(L, V) {
+  clip(0, V.vy0, V.vw, V.vy0 + V.vh);
+  if (S.cursor >= 0 && !(files[S.cursor].ig && !S.layers.ignored)) {
+    const sx = L.tx[S.cursor] - S.camX, sy = V.vy0 + L.ty[S.cursor] - S.camY;
+    for (let k = 0; k < TW - 1; k++) put(sx + k, sy + TH - 1, '▔', C.white);
+  }
+  if (S.hover >= 0 && S.focus && S.layers.focus) {
+    const f = files[S.hover], it = S.focus.idx.get(f.i);
+    if (it) {
+      const w = Math.min(46, V.vw - 2), lines = wrap(it.note, w - 4), h = lines.length + 5;
+      let x = L.tx[f.i] - S.camX + TW, y = V.vy0 + L.ty[f.i] - S.camY;
+      if (x + w > V.vw) x = L.tx[f.i] - S.camX - w - 1;
+      x = Math.max(0, x); if (y + h > V.vy0 + V.vh) y = V.vy0 + V.vh - h; y = Math.max(V.vy0, y);
+      box(x, y, w, h, C.focus, C.pop);
+      txt(x + 2, y + 1, fit(`${CIRC[it.n]} ${S.focus.concept}`, w - 4), C.focus, C.pop, w - 4, true);
+      lines.forEach((l, k) => txt(x + 2, y + 2 + k, l, C.ink, C.pop));
+      txt(x + 2, y + h - 2, fit(`${f.name}:${it.line} · double-click to open`, w - 4), C.dim, C.pop);
+    }
+  }
+}
+
+/* ---------- right column: overview on top, selection below ---------- */
+function mkWriter(I) {
+  const ok = () => I.y < I.y1 - 1;
+  return {
+    line: (s, fg, b) => { if (ok()) txt(I.X, I.y, fit(s, I.W), fg, null, I.W, b); I.y++; },
+    para: (s, fg, max) => { wrap(s, I.W).slice(0, max || 99).forEach(l => { if (ok()) txt(I.X, I.y, l, fg, null, I.W); I.y++; }); },
+    label: (s, right, col) => { if (ok()) { txt(I.X, I.y, fit(s, I.W), col || C.label, null, I.W, true); if (right) txt(I.X + I.W - right.length, I.y, right, C.faint); } I.y++; },
+    gap: () => { I.y++; },
+    rule: () => { if (ok()) for (let k = -1; k <= I.W; k++) put(I.X + k, I.y, '─', C.rule); I.y++; },
+  };
+}
+function drawSide(V, L) {
+  const x0 = COLS - V.IW, y0 = 1, y1 = ROWS - 1;
+  clip(x0, y0, COLS, y1); fillc(x0, y0, V.IW, y1 - y0, C.side);
+  for (let y = y0; y < y1; y++) put(x0, y, '│', C.rule);
+  const I = { X: x0 + 2, W: V.IW - 4, y: y0 + 1, y1 };
+  const w = mkWriter(I);
+  w.label(`${DATA.root}`, `${N.toLocaleString()} files`, C.ink);
+  drawOverview(I, V, L, Math.max(5, Math.min(14, Math.floor((y1 - y0) * 0.24))));
+  w.rule();
+  if (S.cursor >= 0) drawSelection(I); else drawLegend(I, L);
+}
+function miniColor(f) {
+  if (f.i === S.cursor) return [10, C.bar];
+  if (S.search && S.search.set.has(f.i)) return [9, C.white];
+  if (S.layers.focus && S.focus && S.focus.idx.has(f.i)) return [8, C.focus];
+  const tr = S.layers.trail ? S.trail.get(f.i) : null;
+  if (tr && tr.kind === 'edit') return [7, C.edit];
+  if (S.layers.mine && S.mine.has(f.i)) return [6, C.mine];
+  if (tr) return [5, tr.kind === 'read' ? C.read : C.grep];
+  const ht = heat(f); if (ht) return [3, ht[2]];
+  return [1, distOf(f).color];
+}
+function drawOverview(I, V, L, maxH) {
+  let s = I.W / L.w; if (L.h * s > maxH) s = maxH / L.h;
+  const mw = Math.max(1, Math.ceil(L.w * s)), mh = Math.max(1, Math.ceil(L.h * s));
+  const mx0 = I.X + Math.floor((I.W - mw) / 2), my0 = I.y;
+  const bits = new Uint8Array(mw * mh), pri = new Uint8Array(mw * mh), col = new Array(mw * mh);
+  let curCell = -1;
+  for (let i = 0; i < N; i++) {
+    const f = files[i]; if (f.ig && !S.layers.ignored) continue;
+    const dx0 = Math.floor(L.tx[i] * s * 2), dx1 = Math.floor((L.tx[i] + TW - 2) * s * 2);
+    const dy0 = Math.floor(L.ty[i] * s * 4), dy1 = Math.floor((L.ty[i] + TH - 2) * s * 4);
+    const [p, c] = miniColor(f);
+    for (let dy = dy0; dy <= dy1; dy++) for (let dx = dx0; dx <= dx1; dx++) {
+      const cx = dx >> 1, cy = dy >> 2; if (cx >= mw || cy >= mh) continue;
+      const k = cy * mw + cx; bits[k] |= BIT[dy & 3][dx & 1]; if (p > pri[k]) { pri[k] = p; col[k] = c; }
+      if (i === S.cursor) curCell = k;
+    }
+  }
+  const vx0 = Math.max(0, Math.floor(S.camX * s)), vy0 = Math.max(0, Math.floor(S.camY * s));
+  const vx1 = Math.min(mw - 1, Math.max(vx0, Math.ceil((S.camX + V.vw) * s) - 1)), vy1 = Math.min(mh - 1, Math.max(vy0, Math.ceil((S.camY + V.vh) * s) - 1));
+  for (let cy = 0; cy < mh; cy++) for (let cx = 0; cx < mw; cx++) {
+    const k = cy * mw + cx, inV = cx >= vx0 && cx <= vx1 && cy >= vy0 && cy <= vy1;
+    const edge = inV && (cx === vx0 || cx === vx1 || cy === vy0 || cy === vy1);
+    let bg = edge ? C.vpEdge : inV ? C.vpIn : C.miniBg, fg = col[k] || C.faint;
+    if (k === curCell) { bg = C.white; fg = C.bar; }
+    put(mx0 + cx, my0 + cy, bits[k] ? String.fromCharCode(0x2800 + bits[k]) : (k === curCell ? '▪' : ' '), fg, bg);
+  }
+  HITS.push({ x0: mx0, x1: mx0 + mw, y0: my0, y1: my0 + mh, drag: true, fn: (cx, cy) => {
+    const V2 = view(); cancelAnimationFrame(S.anim);
+    S.camX = Math.round((cx - mx0 + 0.5) / s - V2.vw / 2); S.camY = Math.round((cy - my0 + 0.5) / s - V2.vh / 2); clampCam();
+  } });
+  I.y = my0 + mh;
+}
+function drawLegend(I, L) {
+  const w = mkWriter(I);
+  w.label('DISTRICTS', 'files');
+  const dists = [...DIST.values()], room = Math.max(1, I.y1 - I.y - 9), shown = dists.slice(0, Math.min(10, room));
+  for (const d of shown) {
+    if (I.y >= I.y1 - 1) break;
+    put(I.X, I.y, '■', d.color); txt(I.X + 2, I.y, fit(d.name, I.W - 10), C.ink2);
+    const n = d.count.toLocaleString(); txt(I.X + I.W - n.length, I.y, n, C.dim);
+    const hdr = L.headers.find(h => h.depth === 1 && h.node.path === d.name);
+    if (hdr) HITS.push({ x0: I.X, x1: I.X + I.W, y0: I.y, y1: I.y + 1, fn: () => { const V = view(); centerOnRect(hdr.x, hdr.y, hdr.x + Math.min(hdr.w, V.vw - 4), hdr.y + Math.min(hdr.h, V.vh - 2), true); } });
+    I.y++;
+  }
+  if (dists.length > shown.length) { const rest = dists.slice(shown.length); w.line(`+ ${rest.length} more · ${rest.reduce((a, d) => a + d.count, 0)} files`, C.faint); }
+  w.gap();
+  w.label('LAYERS');
+  if (I.y < I.y1 - 1) {
+    let x = I.X; const seg = (s, c) => { txt(x, I.y, s, c); x += s.length + 2; };
+    seg(`◆ ${S.focus ? S.focus.items.length : 0} focus`, C.focus); seg(`▌ ${S.trail.size} trail`, C.read); seg(`● ${S.mine.size} mine`, C.mine);
+    I.y++;
+  }
+  w.gap();
+  w.line(`${DIRS} directories · ${kfmt(TOTAL_LINES)} lines`, C.dim);
+  txt(I.X, I.y1 - 2, fit('arrows or click a tile to select a file', I.W), C.faint);
+}
+function drawSelection(I) {
+  const f = files[S.cursor], w = mkWriter(I), mine = S.mine.get(f.i);
+  const it = S.focus ? S.focus.idx.get(f.i) : null, tr = S.trail.get(f.i);
+  // identity: name, path, namespace
+  w.line(f.name, f.ig ? C.ign : tcol(f), true);
+  if (mine) put(I.X + I.W - 1, I.y - 1, '●', C.mine);
+  w.para((f.dir || '.') + '/', C.dim, 2);
+  if (f.ns) w.para(f.ns, C.ink2, 2);
+  const dist = distOf(f);
+  if (I.y < I.y1 - 1) { let x = I.X; x += txt(x, I.y, f.b ? 'binary' : `${f.n.toLocaleString()} lines`, C.dim) + 3; put(x - 2, I.y, '·', C.faint); txt(x, I.y, dist.name, dist.color); I.y++; }
+  if (f.ig) w.line('gitignored, shown by allowlist', C.ign);
+  // Claude Code and you
+  if (it) { w.gap(); w.line(`${CIRC[it.n]} CC NOTE · line ${it.line}`, C.focus, true); w.para(it.note, C.ink, 4); }
+  if (tr || mine) w.gap();
+  if (tr) w.line(`CC ${tr.kind === 'edit' ? `edited lines ${tr.lines ? tr.lines.join('–') : ''}` : tr.kind === 'read' ? 'read this file' : 'found this file by search'}`, trailCol(tr));
+  if (mine) w.line(`You opened this ${agoMin(mine)}`, C.mine);
+  w.gap();
+
+  const commits = (f.r || []).map(h => DATA.commits[h]).filter(Boolean);
+  const gitRows = commits.length ? commits.length + 2 : 0, keysRow = 2;
+  const avail = I.y1 - I.y - gitRows - keysRow - 1;
+
+  // file shape
+  let selLine = -1; if (S.outline && f.o) selLine = f.o[S.outlineSel][0];
+  if (!f.b && f.n && avail > 7) {
+    const rows = Math.max(4, Math.min(12, Math.floor(avail * 0.4))), G = 5, cols = Math.min(40, I.W - G - 2);
+    w.label('SHAPE', `${f.n} lines`);
+    const mm = fileShape(f, cols, rows), my = I.y, mx = I.X + G;
+    const rowOf = ln => Math.min(rows - 1, Math.floor((ln - 1) / mm.scale / 4));
+    const focusRow = it ? rowOf(it.line) : -1, selRow = selLine > 0 ? rowOf(selLine) : -1;
+    const editRows = new Set(); if (tr && tr.kind === 'edit' && tr.lines) for (let r = rowOf(tr.lines[0]); r <= rowOf(tr.lines[1]); r++) editRows.add(r);
+    const defRows = new Set((f.o || []).map(o => rowOf(o[0])));
+    const lastRow = mm.rowsUsed - 1, midRow = Math.floor(lastRow / 2);
+    for (let r = 0; r < rows; r++) {
+      const y = my + r; if (y >= I.y1 - 1) break;
+      const fg = r === selRow ? C.white : r === focusRow ? C.focus : editRows.has(r) ? C.edit : C.mm2;
+      for (let c = 0; c < cols; c++) { const v = mm.cells[r * cols + c]; put(mx + c, y, v ? String.fromCharCode(0x2800 + v) : ' ', fg, C.miniBg); }
+      if (r === 0 || r === lastRow || (r === midRow && midRow > 0 && midRow < lastRow)) { const s = String(r === lastRow ? f.n : Math.floor(r * 4 * mm.scale) + 1); txt(I.X + G - 1 - s.length, y, s, C.faint); }
+      const mk = r === selRow ? ['◀', C.white] : r === focusRow ? ['◀', C.focus] : editRows.has(r) ? ['▐', C.edit] : defRows.has(r) ? ['·', C.faint] : null;
+      if (mk) put(mx + cols + 1, y, mk[0], mk[1], null, true);
+    }
+    I.y = my + rows + 1;
+  }
+
+  // outline
+  const outlineRows = I.y1 - I.y - gitRows - keysRow - 1;
+  if (f.o && outlineRows >= 2) {
+    w.label(S.outline ? 'OUTLINE · j/k · ⏎ open · esc' : 'OUTLINE · o to browse', `${f.o.length}`);
+    const availO = Math.max(1, outlineRows - 1);
+    if (S.outlineSel < S.outlineTop) S.outlineTop = S.outlineSel;
+    if (S.outlineSel >= S.outlineTop + availO) S.outlineTop = S.outlineSel - availO + 1;
+    let focusK = -1; if (it) f.o.forEach((o, k) => { if (o[0] <= it.line) focusK = k; });
+    const end = Math.min(f.o.length, S.outlineTop + availO - (f.o.length > availO ? 1 : 0));
+    for (let k = S.outlineTop; k < end; k++) {
+      const [ln, kind, name] = f.o[k], sel = S.outline && k === S.outlineSel;
+      const col = sel ? C.white : k === focusK ? C.focus : kind.endsWith('-') ? C.faint : C.dim;
+      if (sel) fillc(I.X - 1, I.y, I.W + 2, 1, C.cursor);
+      txt(I.X, I.y, fit(`${String(ln).padStart(4)}  ${name}`, I.W), col, sel ? C.cursor : null, I.W);
+      const lnv = ln, kk = k; HITS.push({ x0: I.X, x1: I.X + I.W, y0: I.y, y1: I.y + 1, fn: () => { S.outline = true; S.outlineSel = kk; openFile(f.i, lnv, false); } });
+      I.y++;
+    }
+    if (end < f.o.length) { txt(I.X, I.y, `  … ${f.o.length - end} more`, C.faint); I.y++; }
+  }
+
+  // git, grouped: counts and ages, then recent commits as age + description
+  if (commits.length) {
+    I.y = Math.max(I.y + 1, I.y1 - gitRows - keysRow);
+    w.label('GIT', `${f.c || commits.length} commits`);
+    w.line(`changed ${agoPhrase(f.a1)} · created ${agoPhrase(f.a0)}`, C.dim);
+    for (const [, d, s] of commits) {
+      if (I.y >= I.y1 - 1) break;
+      const a = ago(d).padStart(5); txt(I.X, I.y, a, C.ink2); txt(I.X + 7, I.y, fit(describe(s), I.W - 7), C.dim); I.y++;
+    }
+  }
+  txt(I.X, I.y1 - 2, fit('y path · Y ns · H hash · ⏎ open · esc', I.W), C.faint);
+}
+
+/* ---------- bars ---------- */
+function drawTop() {
+  clip(0, 0, COLS, ROWS); fillc(0, 0, COLS, 1, C.bar);
+  const ref = S.cursor >= 0 ? files[S.cursor] : files[nearestToCenter()];
+  const parts = [DATA.root].concat(ref && ref.dir ? ref.dir.split('/') : []);
+  let right = '', rcol = C.dim;
+  if (S.msg && performance.now() < S.msgT) { right = S.msg; rcol = C.ink; }
+  else if (S.focus && S.layers.focus) { right = `◆ CC focus: ${S.focus.concept} · ${S.focus.items.length} files · tab cycles`; rcol = C.focus; }
+  right = fit(right, Math.max(0, COLS - 24));
+  const avail = COLS - right.length - 3;
+  let crumb = ' ' + parts.join(' › ');
+  if (crumb.length > avail) crumb = ' …' + crumb.slice(crumb.length - avail + 2);
+  txt(0, 0, crumb, S.cursor >= 0 ? C.dim : C.faint, null, avail);
+  const last = parts[parts.length - 1], li = crumb.lastIndexOf(last);
+  if (li >= 0) txt(li, 0, last, S.cursor >= 0 ? C.ink : C.dim, null, avail - li, S.cursor >= 0);
+  txt(COLS - right.length - 1, 0, right, rcol, null, undefined, rcol === C.focus);
+}
+function drawStatus() {
+  const y = ROWS - 1; clip(0, 0, COLS, ROWS); fillc(0, y, COLS, 1, C.bar);
+  let x = 0;
+  const seg = (label, fg, bg, fn, bold) => { const s = ' ' + label + ' '; txt(x, y, s, fg, bg || C.bar, undefined, bold); if (fn) HITS.push({ x0: x, x1: x + s.length, y0: y, y1: y + 1, fn }); x += s.length; };
+  if (S.search && S.search.active) { seg('/' + S.search.q + '▏', C.white, C.search, null, true); seg(`${S.search.list.length} matches · ⏎ keep · esc cancel`, C.dim); return; }
+  if (S.outline) { seg('OUTLINE', C.bar, C.focus, null, true); seg('j/k move · ⏎ open at line · esc back', C.dim); return; }
+  const L = S.layers;
+  const tog = (k, label, on, col, fn) => seg(`${k} ${on ? '●' : '○'} ${label}`, on ? col : C.faint, null, fn);
+  tog('1', 'CC trail', L.trail, C.read, () => toggleLayer('trail'));
+  tog('2', 'CC focus', L.focus, C.focus, () => toggleLayer('focus'));
+  tog('3', 'mine', L.mine, C.mine, () => toggleLayer('mine'));
+  tog('4', 'age', L.heat === 'age', C.grep, () => toggleLayer('age'));
+  tog('5', 'churn', L.heat === 'churn', C.read, () => toggleLayer('churn'));
+  tog('6', 'ignored', L.ignored, C.ign, () => toggleLayer('ignored'));
+  if (L.heat) { const ramp = L.heat === 'age' ? AGE : CHURN; for (const r of ramp) { put(x + 1, y, ' ', C.ink, r[1]); put(x + 2, y, ' ', C.ink, r[1]); txt(x + 3, y, r[3], C.dim); x += 4 + r[3].length; } }
+  const focused = document.activeElement === cv, hint = focused ? '? keys' : 'click the map to use keys';
+  if (x + hint.length + 2 < COLS) txt(COLS - hint.length - 1, y, hint, focused ? C.dim : C.focus, null, undefined, !focused);
+}
+const HELP = [
+  ['wasd', 'pan the map (shift: faster)'], ['arrows, hjkl', 'move between files'], ['tab', 'next file in the CC focus'],
+  ['enter', 'open in the editor pane'], ['shift+enter', 'open in a new pane'], ['y / Y / H', 'copy path / namespace / last commit hash'],
+  ['o', 'browse the outline'], ['/', 'search paths (n, N next)'], ['1 – 6', 'layers: trail focus mine age churn ignored'],
+  ['c / x', 'clear my trail / CC trail'], ['esc', 'close, deselect, or release keys'], ['', ''],
+  ['mouse', 'click select · double-click open'], ['', 'drag or wheel pan · click empty map to deselect'],
+  ['', 'overview: click or drag to move the view'],
+];
+function drawHelp() {
+  clip(0, 0, COLS, ROWS);
+  const w = Math.min(62, COLS - 4), h = Math.min(HELP.length + 4, ROWS - 2), x = Math.floor((COLS - w) / 2), y = Math.max(1, Math.floor((ROWS - h) / 2));
+  box(x, y, w, h, C.ink2, C.pop);
+  txt(x + 2, y + 1, 'KEYS', C.focus, C.pop, undefined, true); txt(x + w - 16, y + 1, 'esc or ? close', C.dim, C.pop);
+  HELP.slice(0, h - 4).forEach(([k, d], j) => { txt(x + 2, y + 3 + j, k, C.ink, C.pop, 14, true); txt(x + 17, y + 3 + j, fit(d, w - 19), C.dim, C.pop); });
+}
+
+/* ---------- actions ---------- */
+function flash(m) { S.msg = m; S.msgT = performance.now() + 3200; render(); setTimeout(render, 3300); }
+function toggleLayer(k) { if (k === 'age' || k === 'churn') S.layers.heat = S.layers.heat === k ? null : k; else S.layers[k] = !S.layers[k]; render(); }
+function selectFile(i, center) {
+  if (i < 0) return; S.cursor = i; S.outline = false; S.outlineSel = 0; S.outlineTop = 0;
+  if (center) centerOn(i, true); else { cancelAnimationFrame(S.anim); ensureVisible(i); clampCam(); }
+  render();
+}
+function deselect() { S.cursor = -1; S.outline = false; render(); }
+function moveCursor(dx, dy) {
+  if (S.cursor < 0) { selectFile(nearestToCenter()); return; }
+  const L = lay(), cx = L.tx[S.cursor], cy = L.ty[S.cursor];
+  let best = -1, bs = Infinity;
+  for (let i = 0; i < N; i++) {
+    if (i === S.cursor || (files[i].ig && !S.layers.ignored)) continue;
+    const ddx = (L.tx[i] - cx) / TW, ddy = (L.ty[i] - cy) / TH, along = dx ? ddx * dx : ddy * dy;
+    if (along <= 0.01) continue;
+    const across = Math.abs(dx ? ddy : ddx), score = dx ? along + across * 10 : along * 10 + across;
+    if (score < bs) { bs = score; best = i; }
+  }
+  if (best >= 0) selectFile(best);
+}
+function pan(dx, dy) { cancelAnimationFrame(S.anim); S.camX += dx; S.camY += dy; clampCam(); render(); }
+function copy(text, label) {
+  const ok = () => flash(`Copied ${label}: ${text}`), no = () => flash(`Copy is blocked here. ${label}: ${text}`);
+  try { navigator.clipboard.writeText(text).then(ok, no); } catch (e) { no(); }
+}
+function openFile(i, line, newPane) {
+  const f = files[i]; if (!f) return;
+  const it = S.focus ? S.focus.idx.get(i) : null;
+  line = line || (it && it.line) || 1;
+  S.mine.set(i, Date.now());
+  if (newPane || !S.pane) S.pane = '%' + (++S.paneSeq);
+  flash(`${newPane ? 'New pane' : 'Pane'} ${S.pane}: nvim +${line} ${f.p}`);
+}
+function updateSearch() {
+  const q = S.search.q.toLowerCase();
+  S.search.list = q.length < 2 ? [] : files.filter(f => (!f.ig || S.layers.ignored) && f.p.toLowerCase().includes(q)).sort((a, b) => (b.name.toLowerCase().includes(q)) - (a.name.toLowerCase().includes(q)));
+  S.search.set = new Set(S.search.list.map(f => f.i)); S.search.k = 0;
+  if (S.search.list.length) selectFile(S.search.list[0].i); else render();
+}
+
+/* ---------- keyboard ---------- */
+cv.addEventListener('keydown', e => {
+  const k = e.key;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (S.search && S.search.active) {
+    e.preventDefault();
+    if (k === 'Escape') { S.search = null; render(); }
+    else if (k === 'Enter') { S.search.active = false; render(); }
+    else if (k === 'Backspace') { S.search.q = S.search.q.slice(0, -1); updateSearch(); }
+    else if (k.length === 1) { S.search.q += k; updateSearch(); }
+    return;
+  }
+  if (S.help) { if (k === 'Escape' || k === '?') { S.help = false; render(); } e.preventDefault(); return; }
+  if (S.outline) {
+    const f = files[S.cursor], n = f && f.o ? f.o.length : 0; e.preventDefault();
+    if (k === 'Escape' || k === 'o') S.outline = false;
+    else if (k === 'j' || k === 'ArrowDown') S.outlineSel = Math.min(n - 1, S.outlineSel + 1);
+    else if (k === 'k' || k === 'ArrowUp') S.outlineSel = Math.max(0, S.outlineSel - 1);
+    else if (k === 'Enter' && n) openFile(S.cursor, f.o[S.outlineSel][0], e.shiftKey);
+    render(); return;
+  }
+  const hx = 11 * (e.shiftKey ? 4 : 1), hy = 2 * (e.shiftKey ? 4 : 1);
+  let handled = true;
+  switch (k) {
+    case 'w': case 'W': pan(0, -hy); break;
+    case 's': case 'S': pan(0, hy); break;
+    case 'a': case 'A': pan(-hx, 0); break;
+    case 'd': case 'D': pan(hx, 0); break;
+    case 'ArrowLeft': case 'h': moveCursor(-1, 0); break;
+    case 'ArrowRight': case 'l': moveCursor(1, 0); break;
+    case 'ArrowUp': case 'k': moveCursor(0, -1); break;
+    case 'ArrowDown': case 'j': moveCursor(0, 1); break;
+    case 'Tab': {
+      if (!S.focus) { handled = false; break; }
+      const items = S.focus.items, cur = items.findIndex(x => x.i === S.cursor);
+      selectFile(items[(cur + (e.shiftKey ? -1 : 1) + items.length) % items.length].i, true); break;
+    }
+    case 'Enter': if (S.cursor >= 0) openFile(S.cursor, null, e.shiftKey); break;
+    case 'y': if (S.cursor >= 0) copy(files[S.cursor].p, 'path'); break;
+    case 'Y': if (S.cursor >= 0) { const f = files[S.cursor]; f.ns ? copy(f.ns, 'namespace') : flash('This file has no namespace. Press y to copy its path.'); } break;
+    case 'H': if (S.cursor >= 0) { const f = files[S.cursor], h = f.r && f.r[0]; h ? copy(h, 'last commit hash') : flash('No commits for this file.'); } break;
+    case 'o': if (S.cursor >= 0 && files[S.cursor].o) S.outline = true; break;
+    case '/': S.search = { q: '', list: [], set: new Set(), k: 0, active: true }; break;
+    case 'n': case 'N': if (S.search && S.search.list.length) { const L = S.search.list; S.search.k = (S.search.k + (k === 'n' ? 1 : -1) + L.length) % L.length; selectFile(L[S.search.k].i, true); } break;
+    case '1': toggleLayer('trail'); break;
+    case '2': toggleLayer('focus'); break;
+    case '3': toggleLayer('mine'); break;
+    case '4': toggleLayer('age'); break;
+    case '5': toggleLayer('churn'); break;
+    case '6': toggleLayer('ignored'); break;
+    case 'c': S.mine.clear(); flash('Cleared your trail for this session.'); break;
+    case 'x': S.trail.clear(); flash('Cleared the CC trail.'); break;
+    case '?': S.help = true; break;
+    case 'Escape': if (S.search) S.search = null; else if (S.cursor >= 0) deselect(); else cv.blur(); break;
+    default: handled = false;
+  }
+  if (handled) { e.preventDefault(); render(); }
+});
+cv.addEventListener('focus', render); cv.addEventListener('blur', render);
+
+/* ---------- mouse ---------- */
+let drag = null;
+const cellAt = e => { const r = cv.getBoundingClientRect(); return [Math.floor((e.clientX - r.left) / CW), Math.floor((e.clientY - r.top) / CH)]; };
+function hitTile(cx, cy) {
+  const V = view(), L = lay();
+  if (cx < 0 || cx >= V.vw || cy < V.vy0 || cy >= V.vy0 + V.vh) return -2;
+  const mx = cx + S.camX, my = cy - V.vy0 + S.camY;
+  for (let i = 0; i < N; i++) { if (files[i].ig && !S.layers.ignored) continue; const x = L.tx[i], y = L.ty[i]; if (mx >= x && mx < x + TW - 1 && my >= y && my < y + TH - 1) return i; }
+  return -1;
+}
+const hitRegion = (cx, cy) => { for (let k = HITS.length - 1; k >= 0; k--) { const h = HITS[k]; if (cx >= h.x0 && cx < h.x1 && cy >= h.y0 && cy < h.y1) return h; } return null; };
+cv.addEventListener('pointerdown', e => {
+  cv.focus({ preventScroll: true });
+  const [cx, cy] = cellAt(e), region = hitRegion(cx, cy);
+  drag = { x: e.clientX, y: e.clientY, camX: S.camX, camY: S.camY, moved: false, mini: region && region.drag ? region : null };
+  if (drag.mini) { drag.mini.fn(cx, cy); render(); }
+  cv.setPointerCapture(e.pointerId);
+});
+cv.addEventListener('pointermove', e => {
+  const [cx, cy] = cellAt(e);
+  if (drag) {
+    if (drag.mini) { drag.moved = true; drag.mini.fn(cx, cy); render(); return; }
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
+    if (drag.moved) { cancelAnimationFrame(S.anim); cv.style.cursor = 'grabbing'; S.camX = drag.camX - Math.round(dx / CW); S.camY = drag.camY - Math.round(dy / CH); clampCam(); render(); }
+    return;
+  }
+  const region = hitRegion(cx, cy), i = region ? -1 : hitTile(cx, cy);
+  cv.style.cursor = region || i >= 0 ? 'pointer' : 'default';
+  const h = i >= 0 ? i : -1;
+  if (h !== S.hover) { S.hover = h; render(); }
+});
+cv.addEventListener('pointerup', e => {
+  if (drag && !drag.moved && !drag.mini) {
+    const [cx, cy] = cellAt(e), region = hitRegion(cx, cy);
+    if (region) { region.fn(cx, cy); render(); }
+    else { const i = hitTile(cx, cy); if (i >= 0) selectFile(i); else if (i === -1) deselect(); }
+  }
+  drag = null; cv.style.cursor = 'default';
+});
+cv.addEventListener('pointerleave', () => { if (!drag && S.hover !== -1) { S.hover = -1; render(); } });
+cv.addEventListener('dblclick', e => { const [cx, cy] = cellAt(e), i = hitTile(cx, cy); if (i >= 0) openFile(i, null, e.shiftKey); });
+let wx = 0, wy = 0;
+cv.addEventListener('wheel', e => {
+  e.preventDefault();
+  wx += (e.shiftKey ? e.deltaY : e.deltaX) / CW; wy += (e.shiftKey ? 0 : e.deltaY) / CH;
+  const mx = Math.trunc(wx), my = Math.trunc(wy);
+  if (mx || my) { wx -= mx; wy -= my; pan(mx, my); }
+}, { passive: false });
+$('#keys').onclick = () => { S.help = !S.help; render(); cv.focus({ preventScroll: true }); };
+
+/* ---------- sample session state (what CC and you touched) ---------- */
+const P = {
+  rules: 'components/berth/src/quayside/berth/rules.clj',
+  alloc: 'components/berth/src/quayside/berth/allocation.clj',
+  scoring: 'components/berth/src/quayside/berth/scoring.clj',
+  planner: 'bases/worker/src/quayside/worker/jobs/berth_planner.clj',
+  ui: 'bases/console/src/quayside/console/views/berth/planner.cljs',
+  handler: 'bases/api/src/quayside/api/handlers/berth.clj',
+  test: 'components/berth/test/quayside/berth/rules_test.clj',
+  core: 'components/berth/src/quayside/berth/core.clj',
+  doc: 'CLAUDE.md',
+};
+const lineOf = (p, name) => { const f = byPath.get(p), o = f && f.o && f.o.find(o => o[2] === name); return o ? o[0] : 1; };
+function seed() {
+  const items = [
+    { p: P.rules, line: lineOf(P.rules, 'window-conflicts?'), note: 'Hard rules. A window is rejected when it overlaps another vessel, breaks the draft limit, or falls inside a crane maintenance block.' },
+    { p: P.planner, line: lineOf(P.planner, 'plan-voyage-windows'), note: 'Nightly planner. It scores candidate windows and writes the best one per voyage. It skips manual allocations.' },
+    { p: P.ui, line: lineOf(P.ui, 'on-window-drop'), note: 'Ops console drag and drop. The drop goes to the API, which runs the same rules, so a rejected drop shows the rule name.' },
+  ].filter(it => byPath.has(it.p)).map((it, k) => ({ i: byPath.get(it.p).i, line: it.line, note: it.note, n: k + 1 }));
+  S.focus = { concept: 'Where a berth window gets allocated', items, idx: new Map(items.map(it => [it.i, it])) };
+  const ev = (kind, ps, lines) => { S.trailSeq++; for (const p of ps) { const f = byPath.get(p); if (f) S.trail.set(f.i, { kind, seq: S.trailSeq, lines }); } };
+  ev('grep', [P.alloc, P.handler, P.scoring]);
+  ev('read', [P.rules]); ev('read', [P.alloc]); ev('read', [P.planner]); ev('read', [P.ui]);
+  const tf = byPath.get(P.test), tl = tf && tf.o && tf.o[1] ? tf.o[1][0] : 10;
+  ev('edit', [P.test], [tl, tl + 18]);
+  const now = Date.now(), doc = byPath.get(P.doc), core = byPath.get(P.core);
+  if (doc) S.mine.set(doc.i, now - 22 * 60000);
+  if (core) S.mine.set(core.i, now - 7 * 60000);
+}
+
+/* ---------- sizing and boot ---------- */
+function resize() {
+  const r = cv.parentElement.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  cv.style.width = r.width + 'px'; cv.style.height = r.height + 'px';
+  cv.width = Math.max(1, Math.round(r.width * dpr)); cv.height = Math.max(1, Math.round(r.height * dpr));
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  COLS = Math.max(20, Math.floor(r.width / CW)); ROWS = Math.max(8, Math.floor(r.height / CH));
+  alloc(); clampCam(); draw();
+}
+let booted = false;
+function boot() {
+  if (booted) return; booted = true;
+  measure(); seed();
+  new ResizeObserver(resize).observe(cv.parentElement);
+  resize();
+  if (S.focus.items.length) S.cursor = S.focus.items[0].i;
+  const hb = lay().headers.find(h => h.node.path === 'components/berth/src/quayside/berth');
+  if (hb) centerOnRect(hb.x, hb.y, hb.x + hb.w, hb.y + hb.h, false);
+  draw();
+  try { cv.focus({ preventScroll: true }); } catch (e) {}
+}
+const fontsReady = document.fonts
+  ? Promise.race([document.fonts.ready.then(() => Promise.all([document.fonts.load(`400 ${FPX}px "JetBrains Mono"`), document.fonts.load(`600 ${FPX}px "JetBrains Mono"`)])), new Promise(r => setTimeout(r, 1800))])
+  : Promise.resolve();
+fontsReady.then(boot, boot);
+if (document.fonts) document.fonts.addEventListener('loadingdone', () => { if (booted) { measure(); resize(); } });
+})();
+</script>

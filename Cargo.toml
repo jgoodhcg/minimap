@@ -1,0 +1,13 @@
+[workspace]
+members = ["crates/core", "crates/tui", "crates/gui"]
+resolver = "3"
+
+[workspace.package]
+edition = "2024"
+license = "MIT OR Apache-2.0"
+version = "0.1.0"
+
+# Dependencies build optimized in dev builds, so `cargo run` stays fast: unoptimized tree-sitter parsing
+# took 60 ms for a 3,900-line file (unit 007). The workspace crates still build unoptimized.
+[profile.dev.package."*"]
+opt-level = 2
