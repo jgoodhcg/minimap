@@ -29,7 +29,7 @@ Milestone G9 (unit `057`) ships the five usage observations (2026-10-14 to 2026-
 Unit `057` is `done` (2026-10-16). No window opened during the stint; the GUI visual check waits for the exit review and the user's consent.
 Unit `058` (2026-10-19) prepares publication: the fake `quayside` repo is a Polylith workspace of its own, tracked files keep no facts about the private target repo,
 and the repo starts over as one commit; `docs/git-history.md` keeps the earlier commit messages.
-Unit `059` (active, 2026-10-28) finishes the G9 exit and publishes the repo: the user skipped the GUI visual check, the two G9 choices are open, and `README.md` and the license files are added.
+Unit `059` (active, 2026-10-28) finishes the G9 exit and publishes the repo: the user skipped the GUI visual check, the two G9 choices moved to `Quick Ideas`, and `README.md` and the license files are added.
 
 Open G2 findings for the review (units `039`, `040`; numbers after unit `041`):
 
@@ -212,6 +212,11 @@ Notes:
 Text:
 
 - Text in the interface cannot be selected or copied. Unit `057` covers the reader and the note text. The ideal is every text in the interface.
+
+Agent history (open choices from unit `057`, moved here on 2026-10-29):
+
+- Oldest first, a strip that is scrolled to its end does not follow new rows. A follow at the end, as `tail -f` does, is a candidate.
+- A row without a session draws `—` in `DIM` since unit `057`; it was `FAINT`. Going back to `FAINT` is a candidate.
 
 Instances and sessions:
 

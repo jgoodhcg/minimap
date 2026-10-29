@@ -3,7 +3,7 @@ title: "Finish the G9 exit and publish the repo"
 status: active
 description: "Run the open G9 visual check with the user's consent, decide the open G9 choices, set the commit author email, add a README and license files, and push the one-commit repo to the user's GitHub account"
 created: 2026-10-20
-updated: 2026-10-28
+updated: 2026-10-29
 tags: [milestone-g9, publication]
 priority: high
 ---
@@ -23,7 +23,8 @@ This unit collects those steps, so a new session can finish them in order.
    - The reader's selection fill (`CURSOR` at 25 %, `SELECT_MIX`) is visible on the pane, on the noted-lines tint, and in the note box. The fill is `#17212a` on `#10161c`, so it can be too faint.
    - The session colors and the head row's swatches read on `SIDE`, and the sort chip sits at the head row's right.
    - The status bar hints `n N notes` and `drag select · ⌘c copy` show, and `⌘` draws.
-3. Ask the user to decide two G9 choices, and record the answers in unit `057` and `docs/design.md`:
+3. Ask the user to decide two G9 choices, and record the answers in unit `057` and `docs/design.md`.
+   The user moved both to `roadmap/index.md` `Quick Ideas` as candidates (2026-10-29):
    - Oldest first, the strip does not follow new rows at its end (the unit's rule). Should a strip scrolled to its end follow them?
    - A row without a session now draws `—` in `DIM`; it was `FAINT`. Keep `DIM`?
 4. Optional: open `mockups/minimap-v5.html` (after `python3 mockups/build.py`) and check that the new Polylith `quayside` layout reads well as the design reference.
@@ -45,7 +46,7 @@ Decisions (2026-10-28): the commit keeps the author `jgoodhcg@gmail.com`. The us
 
 - [ ] The user installed the GUI, or chose not to.
 - [x] The visual check ran with the user's consent, and its findings are recorded in unit `057`, or the user skipped it.
-- [ ] The two G9 choices are decided and recorded.
+- [x] The two G9 choices are decided and recorded: both wait in `Quick Ideas`, and the behavior stays as unit `057` built it.
 - [x] `README.md`, `LICENSE-MIT`, and `LICENSE-APACHE` are at the root.
 - [ ] The sweep finds no private name before the push.
 - [ ] The repo is on GitHub with one or more commits, and the old history exists only in the local bundle.
