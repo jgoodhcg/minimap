@@ -28,9 +28,9 @@ This unit collects those steps, so a new session can finish them in order.
    - Oldest first, the strip does not follow new rows at its end (the unit's rule). Should a strip scrolled to its end follow them?
    - A row without a session now draws `—` in `DIM`; it was `FAINT`. Keep `DIM`?
 4. Optional: open `mockups/minimap-v5.html` (after `python3 mockups/build.py`) and check that the new Polylith `quayside` layout reads well as the design reference.
-5. Add the files that a public repo needs. `Cargo.toml` declares `MIT OR Apache-2.0`.
+5. Add the files that a public repo needs. The user chose one license, MIT (2026-10-29); `Cargo.toml` declares `MIT`.
    - `README.md` at the root: what minimap is, the two binaries, build and install, run, the config, the agent adapters, and the docs.
-   - `LICENSE-MIT` (copyright Justin Good, 2026) and `LICENSE-APACHE` (the standard Apache-2.0 text).
+   - `LICENSE`: the MIT License, copyright Justin Good, 2026.
 6. Publish. The repo is one commit (`Publish minimap`), and it has no remote. The full old history is in `.private/minimap-full-history-2026-10-19.bundle`.
    - Ask the user which author email to publish: `jgoodhcg@gmail.com` (the current author of the commit) or the GitHub noreply address.
      To change it, amend the one commit with `--reset-author` after `git config user.email <address>`, with the user's confirmation.
@@ -47,7 +47,7 @@ Decisions (2026-10-28): the commit keeps the author `jgoodhcg@gmail.com`. The us
 - [ ] The user installed the GUI, or chose not to.
 - [x] The visual check ran with the user's consent, and its findings are recorded in unit `057`, or the user skipped it.
 - [x] The two G9 choices are decided and recorded: both wait in `Quick Ideas`, and the behavior stays as unit `057` built it.
-- [x] `README.md`, `LICENSE-MIT`, and `LICENSE-APACHE` are at the root.
+- [x] `README.md` and `LICENSE` are at the root.
 - [ ] The sweep finds no private name before the push.
 - [ ] The repo is on GitHub with one or more commits, and the old history exists only in the local bundle.
 

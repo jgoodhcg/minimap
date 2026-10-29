@@ -100,5 +100,5 @@ Coding agents write most of the code, one work unit from `roadmap/` at a time.
 
 ## License
 
-Licensed under either of [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE), at your option.
-`crates/core/assets/` vendors the Tokyo Night theme with its own license.
+Licensed under the [MIT License](LICENSE).
+`crates/core/assets/` vendors the Tokyo Night theme under its own license, Apache-2.0.
