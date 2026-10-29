@@ -43,6 +43,22 @@ Milestone 4 is open: units `034` (live index) and `010` (event socket and trail)
 Unit `011` stops once for the user to install the binary and the hook.
 The heat color (`#e0529c`) stays until the user has looked at layers `4` and `5`.
 
+## Direction
+
+Recorded after a demo of `minimap-gui` on 2026-10-29. `docs/design.md` `Purpose` stays the settled statement; this section adds the intent behind it.
+
+- Purpose: agent tools pull a user toward cognitive surrender.
+  The agent does the work, the user stops reading the implementation, and skills and the mental model of the codebase atrophy.
+  `minimap` is one tool for intentional expertise-building: it keeps the human in the loop with spatial signals instead of text.
+- The problem: an agent chat stream drops the visual signals that the visual cortex reads fast.
+  Syntax colors, the file tree, the outline, and semantic colors from the LSP are gone.
+  The chat stream is also a poor place to follow along: the user scrolls back to find an old message, and the agent's reasoning is separate from the code it discusses.
+- Position: an accessory beside any agent harness, not a feature of one harness.
+  It connects through standard interfaces (hooks, the `minimap` CLI, MCP), and Claude Code and herdr stay adapters.
+  A viewer at the demo said the tool is compelling only when it is next to or inline with the harness, because switching between windows is not.
+- Long-term direction: one surface where the user reads the code and the agent's work, and types input that `minimap` forwards to the harness.
+  The map becomes the interface the user looks at most, on top of any agent.
+
 ## Milestones
 
 Each milestone ends with something the user can look at and judge.
@@ -225,3 +241,27 @@ Instances and sessions:
 Lower priority:
 
 - Show the outline at every zoom level. A close enough zoom shows the file text with syntax colors, as the reader shows it. This makes the reader a zoom level rather than a view.
+
+### Demo feedback (2026-10-29)
+
+From a demo of `minimap-gui` to another developer. Each item is a candidate for a work unit or a milestone.
+
+Beyond files:
+
+- Represent things other than files: application concepts and how they connect. A file map does not show concepts.
+- Dynamic entity relationship diagrams that update as the code changes. This extends the ERD idea above.
+- More LSP integration: show a symbol's callers, and a dependency graph of imports and exports.
+- A second map that groups by connection (imports, calls) instead of the file tree.
+  It cannot replace the `CARDS` map: the layout must stay a deterministic function of the file tree (`AGENTS.md`).
+
+Harness:
+
+- Run inline with the harness or beside it with no window switch. A desktop agent app with an MCP integration can be an easier host than a terminal harness.
+- Input from the map: the user types in `minimap`, and `minimap` forwards the input to the harness. See `Direction`.
+
+Timeline:
+
+- A time-centric view of a session, after the timeline in video and audio editors.
+  Agent events, reasoning, and notes sit on a track that the user scrubs and steps through, instead of a chat stream they scroll back through.
+- Open question: what is on the time axis, and how does it map to the other signals: icons, color, position on the map, the file tree, and LSP entities?
+  The agent history (unit `051`) and the glow (unit `049`) are a start: the history is a list, not a track.
