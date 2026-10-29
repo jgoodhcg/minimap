@@ -79,6 +79,7 @@ The reader paints its text with the painter (unit `054`), not with widgets, so s
 - [x] Snapshot tests (`crates/gui/tests/snapshots`) updated where the hint or the head row changed. No snapshot holds the hint or the head row, so none changed.
 - [x] `AGENTS.md` validation levels 1–3 and 4b's tests pass. The real-repo tests run with `--no-fail-fast`.
 - [x] No window opens during the stint (the user is working). The GUI visual check waits for the user's consent at the milestone exit.
+- [x] GUI visual check: the user skipped it at the milestone exit (2026-10-28, unit `059`). The selection fill's contrast, the session swatches, and the `⌘` glyph are not checked on a real window.
 
 ## Result (2026-10-16)
 

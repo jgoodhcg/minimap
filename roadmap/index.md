@@ -29,6 +29,7 @@ Milestone G9 (unit `057`) ships the five usage observations (2026-10-14 to 2026-
 Unit `057` is `done` (2026-10-16). No window opened during the stint; the GUI visual check waits for the exit review and the user's consent.
 Unit `058` (2026-10-19) prepares publication: the fake `quayside` repo is a Polylith workspace of its own, tracked files keep no facts about the private target repo,
 and the repo starts over as one commit; `docs/git-history.md` keeps the earlier commit messages.
+Unit `059` (active, 2026-10-28) finishes the G9 exit and publishes the repo: the user skipped the GUI visual check, the two G9 choices are open, and `README.md` and the license files are added.
 
 Open G2 findings for the review (units `039`, `040`; numbers after unit `041`):
 
@@ -161,6 +162,7 @@ See individual `[ID]-[slug].md` files in this directory, and `archived/` for `do
 | `056` | Repo config applies to worktrees | G8 | done |
 | `057` | Usage quick fixes: note clicks, history sort, session colors, text copy | G9 | done |
 | `058` | Publication prep: a fake repo of its own and a one-commit history | — | done |
+| `059` | Finish the G9 exit and publish the repo | G9 | active |
 
 Real target repo details (path, exclusions) are in `.private/targets.md`. That file is git-ignored.
 

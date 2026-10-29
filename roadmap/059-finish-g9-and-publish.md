@@ -1,0 +1,62 @@
+---
+title: "Finish the G9 exit and publish the repo"
+status: active
+description: "Run the open G9 visual check with the user's consent, decide the open G9 choices, set the commit author email, add a README and license files, and push the one-commit repo to the user's GitHub account"
+created: 2026-10-20
+updated: 2026-10-28
+tags: [milestone-g9, publication]
+priority: high
+---
+
+# Finish the G9 exit and publish
+
+## Intent
+
+Unit `057` (Milestone G9) and unit `058` (publication prep) are done, but their exits have open steps that need the user.
+This unit collects those steps, so a new session can finish them in order.
+
+## Specification
+
+1. Install the new GUI. The user runs `cargo install --path crates/gui --locked`. The agent prints the command and does not run it.
+2. GUI visual check of unit `057`, only with the user's consent: it opens a window on the user's screen that floats above other windows and takes the focus.
+   Check these on the real target repo (`AGENTS.md` `GUI visual check`):
+   - The reader's selection fill (`CURSOR` at 25 %, `SELECT_MIX`) is visible on the pane, on the noted-lines tint, and in the note box. The fill is `#17212a` on `#10161c`, so it can be too faint.
+   - The session colors and the head row's swatches read on `SIDE`, and the sort chip sits at the head row's right.
+   - The status bar hints `n N notes` and `drag select · ⌘c copy` show, and `⌘` draws.
+3. Ask the user to decide two G9 choices, and record the answers in unit `057` and `docs/design.md`:
+   - Oldest first, the strip does not follow new rows at its end (the unit's rule). Should a strip scrolled to its end follow them?
+   - A row without a session now draws `—` in `DIM`; it was `FAINT`. Keep `DIM`?
+4. Optional: open `mockups/minimap-v5.html` (after `python3 mockups/build.py`) and check that the new Polylith `quayside` layout reads well as the design reference.
+5. Add the files that a public repo needs. `Cargo.toml` declares `MIT OR Apache-2.0`.
+   - `README.md` at the root: what minimap is, the two binaries, build and install, run, the config, the agent adapters, and the docs.
+   - `LICENSE-MIT` (copyright Justin Good, 2026) and `LICENSE-APACHE` (the standard Apache-2.0 text).
+6. Publish. The repo is one commit (`Publish minimap`), and it has no remote. The full old history is in `.private/minimap-full-history-2026-10-19.bundle`.
+   - Ask the user which author email to publish: `jgoodhcg@gmail.com` (the current author of the commit) or the GitHub noreply address.
+     To change it, amend the one commit with `--reset-author` after `git config user.email <address>`, with the user's confirmation.
+   - Commit this unit and any answers from steps 2–5 first, with the `AGENTS.md` trailer, after the user confirms.
+   - Run `git grep -nIi -f .private/sweep-patterns.txt` and the unit `058` sweep again before the push; both must find nothing.
+     The pattern file is git-ignored, because the private names must not enter tracked files.
+   - The user creates the repo and pushes: `gh repo create minimap --public --source . --push`. The agent prints the command and does not run it.
+     The name can be taken on the user's account; then the user picks another.
+
+## Validation
+
+Decisions (2026-10-28): the commit keeps the author `jgoodhcg@gmail.com`. The user skipped the visual check. The user asked for a README and license files.
+
+- [ ] The user installed the GUI, or chose not to.
+- [x] The visual check ran with the user's consent, and its findings are recorded in unit `057`, or the user skipped it.
+- [ ] The two G9 choices are decided and recorded.
+- [x] `README.md`, `LICENSE-MIT`, and `LICENSE-APACHE` are at the root.
+- [ ] The sweep finds no private name before the push.
+- [ ] The repo is on GitHub with one or more commits, and the old history exists only in the local bundle.
+
+## Scope
+
+- No new features. A finding from the visual check that needs work becomes its own unit.
+- Do not push, create a GitHub repo, or change git identity without the user's confirmation.
+- Never write inside the target repo.
+
+## Context
+
+- `roadmap/057-usage-quick-fixes.md` (Result), `roadmap/058-publication-prep.md`, `docs/design.md` (`Agent history`, `Note reader`).
+- `AGENTS.md` `Visual check` and `Commit Trailer Template`.
