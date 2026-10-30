@@ -189,6 +189,8 @@ Ideas not yet promoted to work units:
 - Allowlisted ignored files (layer 6). The layout already reserves their slots; the index and config do not produce them yet.
 - An nvim adapter: a `BufEnter` autocmd sends "mine" events, so files opened outside `minimap` count.
 - Diffs of commits from the GIT group, and a hunks-only diff view (unit `030` shows uncommitted changes inline only).
+- Annotated diffs (the user, 2026-10-30): an agent puts notes on a diff, and the reader shows each note at its hunk, with syntax colors for code inside the note text.
+  Today a note (unit `052`) points at working-tree lines only, so a removed line has no anchor. The GUI reader (units `054`, `055`) has no diff mode and draws note text in plain `INK`.
 - An index and git cache keyed by `HEAD`, if startup is slow.
 - Heat-layer polish (ramps, legends).
 - An nvim plugin as another front end on `minimap-core`. The desktop GUI became Milestone G1.
@@ -211,6 +213,9 @@ a sort toggle for the history, a color per session, and text selection with copy
 Map:
 
 - Heading size carries no meaning. A child directory such as `src/` can draw bigger than its parent. Size should encode one of: the child count with subdirectories, the depth in the tree, or the edit activity. The goal is waymarkers that help the visual cortex remember the codebase.
+  Decided (the user, 2026-10-30): the count of all files below the directory, at every depth, not only its direct children.
+  Today the size uses no count: it is the largest at which the name spans 30 % of its block's width (unit `040`, `LayoutConfig::name_band`), so a short name draws bigger.
+  The header band's rows follow the name size, so the change moves tiles and needs a test that proves which tiles move.
 - Files with notes or highlights need a stronger mark at the fit view. Options: a glow on the marked cards, or a dimmer map around them.
 - An optional split: the map at the left and the reader at the right, with the tree and the panel in place, for a wide screen. On a laptop screen the reader keeps the map region. The split also moves the reader's wrap or cut point.
 - Highlight every file that a branch or a commit changed. This extends the git base layer idea above with commits as a second source.
