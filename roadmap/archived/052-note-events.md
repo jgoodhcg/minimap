@@ -3,7 +3,7 @@ title: "Note events and minimap note"
 status: done
 description: "Let an agent send a note about a file or its lines to the window with `minimap note`, through a new `note` event on the socket"
 created: 2026-10-09
-updated: 2026-10-09
+updated: 2026-10-30
 tags: [milestone-g7, core, cli, adapter]
 priority: high
 ---
@@ -97,4 +97,4 @@ Docs:
 ## Context
 
 - `crates/core/src/events.rs`, `crates/core/src/trail.rs`, `crates/tui/src/main.rs` (`send`, `parse_lines`), `crates/tui/tests/send.rs`.
-- Unit `012` (`roadmap/012-focus-mcp.md`) planned the same idea as an MCP tool for the TUI.
+- Unit `012` (`roadmap/archived/012-focus-mcp.md`) planned the same idea as an MCP tool for the TUI.

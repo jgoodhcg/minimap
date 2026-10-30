@@ -7,42 +7,49 @@ goal: "Give the user a stable spatial map of a codebase that shows where a codin
 
 ## Current Focus
 
-Milestone G1, a GUI map prototype in egui (units `035`–`038`), is `done` and reviewed (2026-10-01). The G1 answer is yes (see below).
-Milestone G2 (units `039`, `040`) is `done` (2026-10-02): cards as tall as their files, and names that scale with the zoom.
-The user's first reaction (2026-10-02): "This is really nice. I enjoy zooming around a lot." The full G2 review is open, and joins the G3 exit review.
-Milestone G3 (units `041`–`043`) is `done` (2026-10-02): generated files have a capped card height, and the file tree is in the window with the TUI's tree keys.
-No window opened during the stint; the captures ran at the exit review, after the user agreed. Review on 2026-10-02: "Looks good."
-Milestone G4 (units `044`–`046`) is `done` (2026-10-02): the user picked "the right panel" next, a GUI selection panel.
-The panel shows the selection's facts, shape, outline, and git history; it shows at startup, as the TUI's does, and `p` hides it.
-A click on an outline item zooms to its line on the card and marks the line. No window opened during the stint; the captures ran at the exit review (2026-10-05), after the user agreed.
-The open G2 findings below were not discussed.
-Milestone G5 (units `047`, `048`) is `done` (2026-10-07): the agent's trail and the live index in the window, for a demo at 14:00 the same day.
-The user runs one front end at a time. Unit `011` (the hook) was installed at user level on 2026-10-07 and works on the TUI; its Grep payloads are not captured yet.
-At the try-out (11:41) the window received a real session's reads, but the tint did not show them: the user asked for a fading glow and an agent history panel.
-Milestone G6 (units `049`–`051`) is `done` (2026-10-07, 12:15): a glow on each event's card that fades out, session ids on events, and the agent history below the map (`r`).
-No window opened during the stint: the user's try-out with a real Claude Code session is the visual check. The hook shows sessions after `cargo install --path crates/tui --locked`.
-Milestone G7 (units `052`–`055`) is `done` (2026-10-09): notes for a guided review. The user asked for an agent to guide a pull request review on the map:
-a note command and event, a history filter, notes in the panel, and a reader that shows each note around its lines. The note command replaces unit `012`'s MCP plan.
-No window opened during the stint; the GUI visual check waits for the exit review and the user's consent.
-Milestone G7 was committed on 2026-10-13 and both binaries installed; the user's first worktree run showed that `[repos]` keys miss worktrees, so Milestone G8 (unit `056`) makes a key cover them.
-Milestone G9 (unit `057`) ships the five usage observations (2026-10-14 to 2026-10-16) that need no decision; the other nine wait in `Quick Ideas` for the user.
-Unit `057` is `done` (2026-10-16). No window opened during the stint; the GUI visual check waits for the exit review and the user's consent.
-Unit `058` (2026-10-19) prepares publication: the fake `quayside` repo is a Polylith workspace of its own, tracked files keep no facts about the private target repo,
-and the repo starts over as one commit; `docs/git-history.md` keeps the earlier commit messages.
-Unit `059` (active, 2026-10-28) finishes the G9 exit and publishes the repo: the user skipped the GUI visual check, the two G9 choices moved to `Quick Ideas`, and `README.md` and an MIT `LICENSE` are added.
-Units `060` (`ready`) and `061` (`draft`) split "the reader becomes a zoom level" (2026-10-30): code in place at a deep zoom (G10), then notes, the tour, and copy on the map (G11).
+State on 2026-10-30:
 
-Open G2 findings for the review (units `039`, `040`; numbers after unit `041`):
+- Milestones 1–4 and G1–G9 are `done`. The repo is public on GitHub, and `main` tracks `origin/main` (unit `059`).
+  `docs/git-history.md` keeps the earlier commit messages.
+- The user runs `minimap-gui` beside Claude Code. The Claude Code hook (unit `011`) is installed at user level and feeds the trail, the glow, and the agent history.
+- Searches do not reach the map. The Claude Code session of 2026-10-30 has no Grep or Glob tool, and agents search and read through Bash, which unit `011` does not parse.
+  None of the 815 payloads that the hook logged from 2026-10-07 to 2026-10-30 is a Grep payload.
+- The earlier notes of this section are in `Milestone Log` below.
+
+Next, ranked by WSJF on 2026-10-30. Cost of delay is business value + time criticality + risk reduction, each a Fibonacci estimate from 1 to 20; WSJF is the cost of delay over the job size.
+An autonomous session takes the first item whose gate is open.
+
+| # | Item | CoD | Size | WSJF | Gate |
+|---|---|---|---|---|---|
+| 1 | Bash trail adapter: `grep`, `rg`, `cat`, and `sed -n` through Bash become `grep` and `read` events | 29 | 5 | 5.8 | The user lifts unit `011`'s "No Bash parsing" scope and adds `Bash` to the hook matcher. Then write the unit. |
+| 2 | Heading size by the count of all files below a directory (`Usage observations`) | 16 | 3 | 5.3 | Decided. Write the unit. It moves tiles, so it needs a test that proves which tiles move. |
+| 3 | Git base layer (`--base main`) | 16 | 3 | 5.3 | The layer color is open. Ties with item 2, which is decided. |
+| 4 | Follow mode: the selection follows the agent's newest event | 10 | 2 | 5.0 | Write the unit. |
+| 5 | Stronger mark for noted files at the fit view | 10 | 2 | 5.0 | The user picks a glow or a dimmer map. |
+| 6 | Unit `060`: code in place (G10) | 24 | 5 | 4.8 | `ready` |
+| 7 | Annotated diffs | 26 | 13 | 2.0 | A note has no anchor on a removed line. Split it first: items 3 and 6 are steps toward it. |
+| 8 | Unit `061`: the reader as a zoom level (G11) | 24 | 13 | 1.8 | `draft`: after the user has used unit `060`. |
+
+Scores within about 0.5 of each other are inside the estimate's error. The user can reorder them.
+
+Lower: input from the map to the harness (1.8), the timeline view (1.2), and unit `013`, the TUI mine layer (1.3).
+
+Waiting for the user:
+
+- Install the current binaries. The installed `minimap` and `minimap-gui` date from 2026-10-13, before units `056` and `057`:
+  `cargo install --path crates/tui --locked` and `cargo install --path crates/gui --locked`.
+- Decide the Bash adapter (item 1).
+- Drop `--log` from the installed hook when the Bash answer is no. It has logged 815 payloads (18 MB) under `.private/hook-payloads`.
+  When the answer is yes, keep it until the Bash payloads are captured.
+
+Open review items (not discussed):
 
 - Line-scaled cards move more than cards of one size, also with the generated cap. Mostly whole districts shift by one column.
   Rounded widths would cut the moves only a little; not adopted.
 - At the fit view of a real repo, few districts read as text and some are bars; the rest draw nothing: a narrow district cannot hold a readable name in its band.
 - Empty space: files fill only a small share of the map, and the name bands take a noticeable share of it.
 - A card name shows the same 10 to 13 characters at every zoom.
-
-Milestone 4 is open: units `034` (live index) and `010` (event socket and trail) are `done` (2026-09-30). Unit `011` stays `ready`.
-Unit `011` stops once for the user to install the binary and the hook.
-The heat color (`#e0529c`) stays until the user has looked at layers `4` and `5`.
+- The heat color (`#e0529c`) stays until the user has looked at layers `4` and `5`.
 
 ## Direction
 
@@ -76,7 +83,7 @@ At each exit, stop and ask the user for review before the next milestone.
 | 3b | M3 review changes | `027` `028` `029` `030` `031` `032` | See tiles stay put as the repo grows, read long files' shapes, press Enter to read a file or its uncommitted diff in minimap with syntax colors and vim motions, press `e` to open it at the line in nvim, and see an outline for every language. |
 | 3c | Keymap | `033` | Bind any key or key sequence to any action in the config, and see the bound keys in the help and the hints. |
 | 4 | CC trail | `034` `010` `011` | Watch Claude Code's reads, searches, and edits appear on the map as they happen, including files it creates. |
-| 5 | CC focus | `012` | Ask Claude Code to explain a concept and see its files numbered and annotated on the map. |
+| 5 | CC focus (dropped 2026-10-30: the G7 notes replaced it) | `012` | Ask Claude Code to explain a concept and see its files numbered and annotated on the map. |
 | 6 | Mine layer | `013` | See "mine" marks on the files opened this session. |
 | G1 | GUI map prototype | `035` `036` `037` `038` | Run `minimap-gui` on the real target repo in its own window, zoom smoothly from the whole repo to one file's outline, and turn file names, shapes, and outlines on and off. |
 | G2 | Card map v2 | `039` `040` | Run `minimap-gui` on the real target repo: see every card as tall as its file's lines, with one line height on every card and no outline, and read directory names at every zoom as they grow and shrink with it. |
@@ -93,7 +100,7 @@ At each exit, stop and ask the user for review before the next milestone.
 Every unit validates against the real target repo (`AGENTS.md` `Real-repo tests`). Committed tests use the fake `quayside` repo.
 
 Milestones 1–3 need only the repo on disk.
-Units `012` and `013` predate the v5 map; revise their map rendering specs before marking them `ready`. Units `010` and `011` were revised on 2026-09-29.
+Unit `013` predates the v5 map; revise its map rendering spec before marking it `ready`. Unit `012` was dropped on 2026-10-30. Units `010` and `011` were revised on 2026-09-29.
 Milestones 4–6 add live inputs, and each works without the others.
 The order of 4–6 can change; 4 comes first because the trail is the core of the idea.
 
@@ -117,6 +124,38 @@ Answer on 2026-10-01: yes. Zooming on pixels is more interesting than the TUI ma
 - `CARDS` places differ from the TUI map's. The agent raised this again, and the user did not object. G2 makes the two maps differ more.
 - The user left the methods to the agent: failures in the work or at the G2 review show whether they meet the standard.
 
+## Milestone Log
+
+The `Current Focus` notes from 2026-09-30 to 2026-10-30, as they were written.
+
+Milestone G1, a GUI map prototype in egui (units `035`–`038`), is `done` and reviewed (2026-10-01). The G1 answer is yes (see below).
+Milestone G2 (units `039`, `040`) is `done` (2026-10-02): cards as tall as their files, and names that scale with the zoom.
+The user's first reaction (2026-10-02): "This is really nice. I enjoy zooming around a lot." The full G2 review is open, and joins the G3 exit review.
+Milestone G3 (units `041`–`043`) is `done` (2026-10-02): generated files have a capped card height, and the file tree is in the window with the TUI's tree keys.
+No window opened during the stint; the captures ran at the exit review, after the user agreed. Review on 2026-10-02: "Looks good."
+Milestone G4 (units `044`–`046`) is `done` (2026-10-02): the user picked "the right panel" next, a GUI selection panel.
+The panel shows the selection's facts, shape, outline, and git history; it shows at startup, as the TUI's does, and `p` hides it.
+A click on an outline item zooms to its line on the card and marks the line. No window opened during the stint; the captures ran at the exit review (2026-10-05), after the user agreed.
+The open G2 findings below were not discussed.
+Milestone G5 (units `047`, `048`) is `done` (2026-10-07): the agent's trail and the live index in the window, for a demo at 14:00 the same day.
+The user runs one front end at a time. Unit `011` (the hook) was installed at user level on 2026-10-07 and works on the TUI; its Grep payloads are not captured yet.
+At the try-out (11:41) the window received a real session's reads, but the tint did not show them: the user asked for a fading glow and an agent history panel.
+Milestone G6 (units `049`–`051`) is `done` (2026-10-07, 12:15): a glow on each event's card that fades out, session ids on events, and the agent history below the map (`r`).
+No window opened during the stint: the user's try-out with a real Claude Code session is the visual check. The hook shows sessions after `cargo install --path crates/tui --locked`.
+Milestone G7 (units `052`–`055`) is `done` (2026-10-09): notes for a guided review. The user asked for an agent to guide a pull request review on the map:
+a note command and event, a history filter, notes in the panel, and a reader that shows each note around its lines. The note command replaces unit `012`'s MCP plan.
+No window opened during the stint; the GUI visual check waits for the exit review and the user's consent.
+Milestone G7 was committed on 2026-10-13 and both binaries installed; the user's first worktree run showed that `[repos]` keys miss worktrees, so Milestone G8 (unit `056`) makes a key cover them.
+Milestone G9 (unit `057`) ships the five usage observations (2026-10-14 to 2026-10-16) that need no decision; the other nine wait in `Quick Ideas` for the user.
+Unit `057` is `done` (2026-10-16). No window opened during the stint; the GUI visual check waits for the exit review and the user's consent.
+Unit `058` (2026-10-19) prepares publication: the fake `quayside` repo is a Polylith workspace of its own, tracked files keep no facts about the private target repo,
+and the repo starts over as one commit; `docs/git-history.md` keeps the earlier commit messages.
+Unit `059` (active, 2026-10-28) finishes the G9 exit and publishes the repo: the user skipped the GUI visual check, the two G9 choices moved to `Quick Ideas`, and `README.md` and an MIT `LICENSE` are added.
+Units `060` (`ready`) and `061` (`draft`) split "the reader becomes a zoom level" (2026-10-30): code in place at a deep zoom (G10), then notes, the tour, and copy on the map (G11).
+
+Milestone 4 is open: units `034` (live index) and `010` (event socket and trail) are `done` (2026-09-30). Unit `011` stays `ready`.
+Unit `011` stops once for the user to install the binary and the hook.
+
 ## Work Units
 
 See individual `[ID]-[slug].md` files in this directory, and `archived/` for `done` and `dropped` units. Use `draft` during clarification and `ready` when autonomous execution can begin.
@@ -133,8 +172,8 @@ See individual `[ID]-[slug].md` files in this directory, and `archived/` for `do
 | `008` | Git history and heat layers | 3 | done |
 | `009` | Layout stability measurement | any, after `003` | done |
 | `010` | Event socket and trail layer | 4 | done |
-| `011` | Claude Code hooks adapter | 4 | ready |
-| `012` | Focus MCP tool and focus layer | 5 | draft |
+| `011` | Claude Code hooks adapter | 4 | done |
+| `012` | Focus MCP tool and focus layer | 5 | dropped (replaced by `052`) |
 | `013` | Mine layer (editor handoff moved to `031`) | 6 | draft |
 | `014` | Panel header stats and no wheel panning | 1b | done |
 | `015` | File-type icons and colors | 1b | done |
@@ -181,7 +220,7 @@ See individual `[ID]-[slug].md` files in this directory, and `archived/` for `do
 | `056` | Repo config applies to worktrees | G8 | done |
 | `057` | Usage quick fixes: note clicks, history sort, session colors, text copy | G9 | done |
 | `058` | Publication prep: a fake repo of its own and a one-commit history | — | done |
-| `059` | Finish the G9 exit and publish the repo | G9 | active |
+| `059` | Finish the G9 exit and publish the repo | G9 | done |
 | `060` | Code in place | G10 | ready |
 | `061` | The reader as a zoom level | G11 | draft |
 

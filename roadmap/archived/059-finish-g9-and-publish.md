@@ -1,9 +1,9 @@
 ---
 title: "Finish the G9 exit and publish the repo"
-status: active
+status: done
 description: "Run the open G9 visual check with the user's consent, decide the open G9 choices, set the commit author email, add a README and license files, and push the one-commit repo to the user's GitHub account"
 created: 2026-10-20
-updated: 2026-10-29
+updated: 2026-10-30
 tags: [milestone-g9, publication]
 priority: high
 ---
@@ -44,12 +44,16 @@ This unit collects those steps, so a new session can finish them in order.
 
 Decisions (2026-10-28): the commit keeps the author `jgoodhcg@gmail.com`. The user skipped the visual check. The user asked for a README and license files.
 
-- [ ] The user installed the GUI, or chose not to.
+- [ ] The user installed the GUI, or chose not to. Open: the installed binaries date from 2026-10-13, before units `056` and `057`. The install moved to `roadmap/index.md` `Current Focus`.
 - [x] The visual check ran with the user's consent, and its findings are recorded in unit `057`, or the user skipped it.
 - [x] The two G9 choices are decided and recorded: both wait in `Quick Ideas`, and the behavior stays as unit `057` built it.
 - [x] `README.md` and `LICENSE` are at the root.
-- [ ] The sweep finds no private name before the push.
-- [ ] The repo is on GitHub with one or more commits, and the old history exists only in the local bundle.
+- [x] The sweep finds no private name before the push. On 2026-10-30 `git grep -nIi -f .private/sweep-patterns.txt` finds nothing. The run before the push is not recorded.
+- [x] The repo is on GitHub with one or more commits, and the old history exists only in the local bundle. `main` tracks `origin/main`, and the history starts at `Publish minimap`.
+
+## Result (2026-10-30)
+
+The repo is public at `https://github.com/jgoodhcg/minimap`. Milestone G9 is closed. Only the install is open, and it is a user step.
 
 ## Scope
 
@@ -59,5 +63,5 @@ Decisions (2026-10-28): the commit keeps the author `jgoodhcg@gmail.com`. The us
 
 ## Context
 
-- `roadmap/057-usage-quick-fixes.md` (Result), `roadmap/058-publication-prep.md`, `docs/design.md` (`Agent history`, `Note reader`).
+- `roadmap/archived/057-usage-quick-fixes.md` (Result), `roadmap/archived/058-publication-prep.md`, `docs/design.md` (`Agent history`, `Note reader`).
 - `AGENTS.md` `Visual check` and `Commit Trailer Template`.

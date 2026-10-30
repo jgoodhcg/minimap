@@ -1,9 +1,9 @@
 ---
 title: "Claude Code hooks adapter"
-status: ready
+status: done
 description: "Forward Claude Code Read, Grep, Edit, Write, and NotebookEdit tool events to minimap with one async PostToolUse hook"
 created: 2026-09-25
-updated: 2026-09-29
+updated: 2026-10-30
 tags: [milestone-4, adapter, claude-code]
 priority: high
 ---
@@ -46,16 +46,28 @@ The docs do not give the `tool_response` fields for each tool. Step 3 captures t
 
 ## Validation
 
-- [ ] Unit tests: each fixture payload maps to the expected events; Glob sends nothing; an Edit with a structured patch and one without give the right lines;
+- [x] Unit tests: each fixture payload maps to the expected events; Glob sends nothing; an Edit with a structured patch and one without give the right lines;
   a Grep `content` response with `path:line:` rows gives each path once.
-- [ ] Unit test: malformed stdin, an empty object, and an unknown tool exit 0 and send nothing.
-- [ ] Unit test: paths in two repos go to the two repos' sockets; a path in no repo is dropped.
-- [ ] Integration test: with a unit `010` listener on a temporary repo, piping a fixture payload into `minimap hook claude-code` puts the event in the listener's channel.
-- [ ] Test: the hook with no listener exits 0 in under 50 ms.
+- [x] Unit test: malformed stdin, an empty object, and an unknown tool exit 0 and send nothing.
+- [x] Unit test: paths in two repos go to the two repos' sockets; a path in no repo is dropped.
+- [x] Integration test: with a unit `010` listener on a temporary repo, piping a fixture payload into `minimap hook claude-code` puts the event in the listener's channel.
+- [x] Test: the hook with no listener exits 0 in under 50 ms.
 - [ ] Manual check, with the hook installed: minimap runs on the real target repo in the visual-check tab.
   This Claude Code session reads two target files and greps the target (read only). The map, the tree, and the overview show them within 1 s.
 - [ ] Manual check on the `minimap self` tab: an `Edit` of a scratch file in the minimap repo shows as an edit with its lines.
-- [ ] All `AGENTS.md` validation levels 1–4 pass.
+- [x] All `AGENTS.md` validation levels 1–4 pass: in every later milestone's validation, and the 12 hook tests pass on 2026-10-30.
+
+## Result (2026-10-30)
+
+- `minimap hook claude-code [--log DIR]` (`crates/tui/src/claude_code.rs`) and `adapters/claude-code/` shipped before Milestone G5.
+  The user installed the hook at user level on 2026-10-07. Since then it feeds the TUI trail and the GUI trail, glow, and agent history.
+- The tests build their payloads in code, not from captured fixtures. The captured Edit payloads carry the `structuredPatch` that the mapping reads.
+- The hook logged 815 payloads to `.private/hook-payloads` from 2026-10-07 to 2026-10-30: Read, Edit, and Write only. No Grep payload arrived.
+  The Claude Code session of 2026-10-30 has no Grep or Glob tool. Agents search with `grep` and `rg` through Bash, and read with `cat` and `sed -n`.
+  So searches do not reach the map, and the Grep mapping is tested only with payloads built in code.
+- Not run: the manual Grep check on the real target repo, and the manual Edit check on the `minimap self` tab.
+  The Grep check cannot run without a Grep tool. A Bash adapter, which this unit's scope excludes, is the follow-up (`roadmap/index.md` `Current Focus`).
+- The installed hook still has `--log`. Step 3 says to drop it. It stays until the user decides the Bash adapter, because that adapter needs captured Bash payloads.
 
 ## Scope
 

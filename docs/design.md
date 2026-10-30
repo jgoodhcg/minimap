@@ -342,7 +342,7 @@ The user asked for a best guess on the state channel. Revisit it after a visual 
     Read and grep are the v3 hues (`#6cb6d9`, `#c9a14a`) raised to an HSL saturation of at least 60 %. One path keeps its strongest kind: edit, then read, then grep.
   - Heat (layers 4 and 5, which are exclusive): `#e0529c`, drawn at 45 %, 30 %, and 18 % for the three ramp steps (unit `008`).
 - In the viewer, the foreground carries syntax, and the background carries the cursor row, find matches, and diff rows (units `029` and `030`).
-- The selected cell's glyph is white and bold. CC focus replaces the icon with its number `①②③`; unit `012` settles its colors.
+- The selected cell's glyph is white and bold. CC focus was to replace the icon with its number `①②③`; unit `012` was dropped on 2026-10-30, so the TUI has no focus marks.
 
 ## Search
 
@@ -371,7 +371,7 @@ Reference: Telescope `find_files` with `telescope-fzf-native`, the user's nvim p
 Layers 4 and 5 are exclusive: turning one on turns the other off. The status bar shows the active ramp's legend.
 Layers color the map only, except the trail, which also marks the tree, the overview, and the panel.
 Layer 1 off hides the trail everywhere and keeps it; `x` clears it. The trail lives for the session and has no size limit.
-Units `012` and `013` predate the v5 map; revise their map rendering before they become `ready`.
+Unit `013` predates the v5 map; revise its map rendering before it becomes `ready`. Unit `012` was dropped on 2026-10-30: the notes (units `052`, `053`) replaced it.
 
 ## Keys
 
@@ -387,7 +387,7 @@ Keyboard first; the mouse also works. The `Name` column is the action name for t
 | `t` | Show or hide the file tree | `toggle_tree` |
 | `[` / `]` | Narrow or widen the file tree | `narrow_tree`, `widen_tree` |
 | `/` | Search files in the picker (see `Search`); `n`, `N` cycle the kept results; Esc clears them | `search`, `next_result`, `previous_result`, `clear_search` |
-| Tab | Next file in the CC focus (unit `012`) | |
+| Tab | Next file in the CC focus (unit `012`, dropped 2026-10-30; unbound) | |
 | Enter | On a directory: open or close it. On a file: view it (unit `029`); `e` opens it in the editor | `open` |
 | `o` | Browse the outline; Enter views the file at the item | `browse_outline` |
 | `e` | Open the file in the editor at the line (unit `031`, see `Editor handoff`) | `open_editor` |

@@ -1,9 +1,9 @@
 ---
 title: "Focus MCP tool and focus layer"
-status: draft
+status: dropped
 description: "Let the agent highlight and annotate the files of a concept through an MCP tool, and show them as the focus layer"
 created: 2026-09-25
-updated: 2026-09-25
+updated: 2026-10-30
 tags: [milestone-5, adapter, mcp, layers]
 priority: medium
 ---
@@ -31,6 +31,12 @@ This ties the chat explanation to places on the map.
 - [ ] Integration test: an MCP client over stdio calls `map_focus`; the TUI state holds the items.
 - [ ] Snapshot test: the seeded focus from `mockups/v3-template.html:786-792` on the quayside fixture.
 - [ ] Manual: ask Claude Code to explain a concept in the target repo; the focus appears.
+
+## Dropped (2026-10-30)
+
+Milestone G7 replaced this unit. The `minimap note` command and note event (unit `052`) send the agent's notes without an MCP server,
+and the GUI draws the noted files numbered on the map (unit `053`). The TUI focus layer was not built.
+An MCP server can come back as a new unit when a host needs it (`roadmap/index.md` `Direction`).
 
 ## Scope
 
