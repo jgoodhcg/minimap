@@ -30,6 +30,7 @@ Unit `057` is `done` (2026-10-16). No window opened during the stint; the GUI vi
 Unit `058` (2026-10-19) prepares publication: the fake `quayside` repo is a Polylith workspace of its own, tracked files keep no facts about the private target repo,
 and the repo starts over as one commit; `docs/git-history.md` keeps the earlier commit messages.
 Unit `059` (active, 2026-10-28) finishes the G9 exit and publishes the repo: the user skipped the GUI visual check, the two G9 choices moved to `Quick Ideas`, and `README.md` and an MIT `LICENSE` are added.
+Units `060` (`ready`) and `061` (`draft`) split "the reader becomes a zoom level" (2026-10-30): code in place at a deep zoom (G10), then notes, the tour, and copy on the map (G11).
 
 Open G2 findings for the review (units `039`, `040`; numbers after unit `041`):
 
@@ -86,6 +87,8 @@ At each exit, stop and ask the user for review before the next milestone.
 | G7 | Agent notes | `052` `053` `054` `055` | Run `minimap-gui` on the real target repo beside a Claude Code session that guides a review with `minimap note`: see the noted files numbered on the map at every zoom, filter the agent history to notes, see a file's notes in the panel, and step through the notes with `n` and `N` in a reader that shows each note on its lines with syntax colors, or in the whole file with `z`. |
 | G8 | Worktree config | `056` | Run `minimap-gui` in a worktree of the real target repo and see the main checkout's excludes apply without a new config entry. |
 | G9 | Usage quick fixes | `057` | Run `minimap-gui` on the real target repo beside a Claude Code session: click a note row to see its file on the map and click again to read it, sort the history oldest first, tell sessions apart by color, see `N` in the hint, and drag over the reader's text and copy it. |
+| G10 | Code in place | `060` | Run `minimap-gui` on the real target repo: zoom into a card past its shape until its code reads in place with syntax colors and line numbers, and press Enter to zoom to the selected file's code. |
+| G11 | The reader as a zoom level | `061` | Run `minimap-gui` on the real target repo beside a Claude Code session that guides a review: read each note beside its lines on the map, step through the notes with `n` and `N` without a separate reader, and select and copy code on the map. |
 
 Every unit validates against the real target repo (`AGENTS.md` `Real-repo tests`). Committed tests use the fake `quayside` repo.
 
@@ -179,6 +182,8 @@ See individual `[ID]-[slug].md` files in this directory, and `archived/` for `do
 | `057` | Usage quick fixes: note clicks, history sort, session colors, text copy | G9 | done |
 | `058` | Publication prep: a fake repo of its own and a one-commit history | — | done |
 | `059` | Finish the G9 exit and publish the repo | G9 | active |
+| `060` | Code in place | G10 | ready |
+| `061` | The reader as a zoom level | G11 | draft |
 
 Real target repo details (path, exclusions) are in `.private/targets.md`. That file is git-ignored.
 
@@ -199,7 +204,7 @@ Ideas not yet promoted to work units:
 - Less empty space on the `CARDS` map: shelf holes, the Growth bands, and a camera that can show far past the map's edge (G1 review, deferred). Unit `039` measures the fill.
 - Follow mode: the selection follows the agent's newest event.
 - A git base layer for a review: mark the files that differ from a base branch (`--base main`), so a pull request shows on the map without notes.
-- Open any file in the GUI reader, not only a note's file.
+- Open any file in the GUI reader, not only a note's file. Unit `060` covers it: Enter zooms to a file's code in place.
 - The newest trail event in the top bar, as an event log of one line.
 - A git status layer: modified and untracked files on the map (unit `034` lists untracked files).
 - Fluency-illusion check: does the map build real understanding? Deferred until the user knows whether they enjoy using it.
@@ -246,6 +251,7 @@ Instances and sessions:
 Lower priority:
 
 - Show the outline at every zoom level. A close enough zoom shows the file text with syntax colors, as the reader shows it. This makes the reader a zoom level rather than a view.
+  The file text at a close zoom became unit `060`, and the reader as a zoom level became unit `061` (2026-10-30). The outline at middle zooms stays here.
 
 ### Demo feedback (2026-10-29)
 
