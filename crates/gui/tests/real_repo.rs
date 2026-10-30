@@ -108,7 +108,7 @@ fn visible_cards_at_width_200_get_details_within_1_s() {
 #[test]
 #[ignore = "needs MINIMAP_TARGET_REPO"]
 fn directory_names_at_the_fit_view_and_at_card_width_33() {
-    // Unit 040: names sized by their blocks, drawn as text from 7 points and as bars from 2.
+    // Units 040 and 062: names sized by the count of files below their directories, drawn as text from 7 points and as bars from 2.
     let (_, index) = target();
     let map = Map::new(index);
     let region = common::region();

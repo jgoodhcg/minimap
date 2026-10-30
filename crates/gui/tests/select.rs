@@ -355,7 +355,7 @@ fn a_click_anywhere_in_a_header_band_selects_its_directory() {
     for zoom_w in [12.0, 80.0, 300.0] {
         let mut app = app_at(zoom_w, band.center());
         let cam = app.cam();
-        // The band's right end, or the region's: the name spans 30 % of the block from its left, so no name is there.
+        // The band's right end, or the region's: a click there selects the directory, on its name or beside it.
         let end = cam.to_screen(app.region, band.right_center());
         let at = pos2(end.x.min(app.region.right()) - 4.0, end.y);
         assert_eq!(app.hit(at), Some(Entry::Dir(node)), "{zoom_w}");

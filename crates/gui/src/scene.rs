@@ -28,7 +28,7 @@ pub const GREEK_ALPHA: f32 = 0.35;
 pub const LADDER_BASE: f32 = 7.0;
 pub const LADDER_STEP: f32 = 1.1;
 /// A directory name larger than this on the screen fades out over the next [`FADE_SPAN`] of it, so a name never fills the window.
-/// 200, not 96: a block fitted in the window gives its name about `776 / chars` points, so a 4-character name is 194 points (unit `040`).
+/// 200, not 96 (unit `040`). Since unit `062` a quayside name is at most 136 points after a zoom to its directory.
 pub const FADE_FROM: f32 = 200.0;
 pub const FADE_SPAN: f32 = 0.5;
 

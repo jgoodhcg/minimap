@@ -3,7 +3,7 @@ mod common;
 use std::fs;
 use std::time::Instant;
 
-use minimap_core::layout::{Order, Quant, Round};
+use minimap_core::layout::{NAME_CAP_FILES, NAME_SHARE, Names, Order, Quant, Round};
 use minimap_core::{Index, Layout, LayoutConfig, Tree};
 
 const TILES: LayoutConfig = LayoutConfig::TILES;
@@ -735,45 +735,51 @@ fn the_card_layout_takes_no_hidden_or_selection_input() {
     assert_eq!((a.tiles, a.tile_h), (a2.tiles, a2.tile_h));
 }
 
+/// Per node: the count of files below it, at every depth (unit 062), summed from the tree.
+fn files_below(tree: &Tree) -> Vec<usize> {
+    let mut count = vec![0; tree.nodes.len()];
+    // Nodes are in preorder, so each child comes after its parent.
+    for n in (0..tree.nodes.len()).rev() {
+        let node = &tree.nodes[n];
+        count[n] = node.files.len() + node.kids.iter().map(|&k| count[k]).sum::<usize>();
+    }
+    count
+}
+
+/// The band rows of unit 062 for a count: the least `r` with `r * r >= count`, rounded up to a step.
+fn count_band(count: usize) -> i32 {
+    let n = count.clamp(1, NAME_CAP_FILES);
+    let r = (1..).find(|r| r * r >= n).unwrap();
+    CARDS.quant.round(r) as i32
+}
+
 #[test]
-fn a_block_band_holds_its_name_sized_by_the_block_width() {
-    use minimap_core::layout::{BAND_K, NAME_ADVANCE, NAME_MIN, NAME_SHARE};
+fn a_block_band_holds_its_name_sized_by_the_count_of_files_below() {
+    use minimap_core::layout::{BAND_K, NAME_MIN};
+    assert_eq!(BAND_K * NAME_MIN, 1.0);
     let tree = Tree::from_index(&quayside());
     let layout = Layout::compute(&tree, &CARDS);
+    let count = files_below(&tree);
+    assert_eq!(count[0], 2585);
     let mut sized = 0;
     for h in &layout.headers {
-        let chars = tree.nodes[h.node].name.chars().count() + 1;
-        let fit = NAME_SHARE * f64::from(h.w) * 8.0 / (chars as f64 * NAME_ADVANCE);
-        let size = fit.max(NAME_MIN * 18.0);
-        assert!(
-            (layout.name_size[h.node] - size).abs() < 1e-9,
-            "{:?}",
-            tree.nodes[h.node].path
-        );
-        let rows = ((BAND_K * size / 18.0).ceil() as i32).max(1);
-        assert_eq!(
-            h.band,
-            CARDS.quant.round(rows as usize) as i32,
-            "{:?}",
-            tree.nodes[h.node].path
-        );
-        // The name's line fits its band, and it spans 30 % of the block, or less at the least size.
-        assert!(BAND_K * size <= f64::from(h.band) * 18.0 + 1e-9);
-        let span = chars as f64 * NAME_ADVANCE * size / (f64::from(h.w) * 8.0);
-        assert!(
-            span <= NAME_SHARE + 1e-9 || size == NAME_MIN * 18.0,
-            "{span}"
-        );
-        sized += usize::from(size > NAME_MIN * 18.0);
+        let path = &tree.nodes[h.node].path;
+        let size = NAME_MIN * 18.0 * (count[h.node] as f64).sqrt();
+        assert!((layout.name_size[h.node] - size).abs() < 1e-9, "{path:?}");
+        assert_eq!(h.band, count_band(count[h.node]), "{path:?}");
+        // The name's line fits its band.
+        assert!(BAND_K * size <= f64::from(h.band) * 18.0 + 1e-9, "{path:?}");
+        sized += usize::from(count[h.node] > 1);
     }
     eprintln!(
         "{sized} of {} names are larger than the least size",
         layout.headers.len()
     );
-    assert!(sized > 50, "{sized}");
-    // The root and the districts get the largest names.
-    let root = layout.name_size[0];
-    assert!(layout.name_size.iter().all(|&s| s <= root));
+    assert!(sized > 300, "{sized}");
+    // The root gets the largest name: 14.4 x sqrt(2,585) points, in a band of 60 rows.
+    assert!((layout.name_size[0] - 14.4 * 2585f64.sqrt()).abs() < 1e-9);
+    assert_eq!(layout.headers[0].band, 60);
+    assert!(layout.name_size.iter().all(|&s| s <= layout.name_size[0]));
     // One-size layouts keep one header row.
     let chars = Layout::compute(&tree, &CHARS);
     assert!(chars.headers.iter().all(|h| h.band == 1));
@@ -781,67 +787,233 @@ fn a_block_band_holds_its_name_sized_by_the_block_width() {
 }
 
 #[test]
-fn a_larger_block_has_a_name_at_least_as_large() {
-    for chars in [2, 5, 9, 20, 40] {
-        let mut last = (0.0, 0);
-        for w in (22..2000).step_by(7) {
-            let (size, band) = CARDS.name_band(w, chars);
-            assert!(size >= last.0 && band >= last.1, "{chars} chars at {w}");
-            last = (size, band);
-        }
+fn a_larger_count_has_a_name_at_least_as_large_and_no_child_outgrows_its_parent() {
+    // The size and the band follow the count alone: the block's width and the name's length do not change them.
+    let mut last = (0.0, 0);
+    for files in 0..=12_000 {
+        let got = CARDS.name_band(22, 4, files);
+        assert!(got.0 >= last.0 && got.1 >= last.1, "{files} files");
+        assert_eq!(got, CARDS.name_band(3000, 40, files), "{files} files");
+        last = got;
     }
-    // Same width, longer name: a smaller or equal size.
-    assert!(CARDS.name_band(500, 30).0 <= CARDS.name_band(500, 10).0);
+    // One file, or none, gets the least size in one row. A square count fills its rows exactly.
+    assert_eq!(CARDS.name_band(22, 4, 0), (14.4, 1));
+    assert_eq!(CARDS.name_band(22, 4, 1), (14.4, 1));
+    for (files, rows) in [
+        (2, 2),
+        (4, 2),
+        (5, 3),
+        (9, 3),
+        (10, 4),
+        (16, 4),
+        (17, 5),
+        (25, 5),
+        (26, 7),
+        (49, 7),
+        (50, 9),
+    ] {
+        assert_eq!(CARDS.name_band(22, 4, files).1, rows, "{files} files");
+    }
+    assert!((CARDS.name_band(22, 4, 100).0 - 144.0).abs() < 1e-9);
+    // The cap: from 10,000 files the size is 1,440 points, 100 times the least, in a band of 100 rows rounded up to 118.
+    let cap = CARDS.name_band(22, 4, NAME_CAP_FILES);
+    assert!((cap.0 - 1440.0).abs() < 1e-9);
+    assert_eq!(cap.1, 118);
+    assert_eq!(CARDS.name_band(22, 4, 1_000_000), cap);
+    // On quayside no child's name is larger than its parent's. With the width rule of unit 040, some were.
     let tree = Tree::from_index(&quayside());
-    let layout = Layout::compute(&tree, &CARDS);
-    let name_len = |h: &minimap_core::layout::Header| tree.nodes[h.node].name.chars().count();
-    for a in &layout.headers {
-        for b in &layout.headers {
-            if name_len(a) == name_len(b) && a.w > b.w {
-                assert!(layout.name_size[a.node] >= layout.name_size[b.node]);
-            }
-        }
-    }
+    let larger_kids = |names: Names| {
+        let layout = Layout::compute(&tree, &LayoutConfig { names, ..CARDS });
+        tree.nodes
+            .iter()
+            .enumerate()
+            .flat_map(|(n, node)| node.kids.iter().map(move |&k| (n, k)))
+            .filter(|&(n, k)| layout.name_size[k] > layout.name_size[n])
+            .count()
+    };
+    assert_eq!(larger_kids(Names::Count), 0);
+    assert_eq!(larger_kids(Names::Width(NAME_SHARE)), 34);
 }
 
 #[test]
-fn the_band_changes_no_card_place_while_the_block_width_holds() {
-    // The band is a function of the block's width and name only. A block that keeps its width keeps its band,
-    // so the band moves nothing that the block's size would not move (see the step tests above).
+fn a_block_keeps_its_band_while_its_count_stays_inside_its_step() {
+    // The band is a function of the count of files below the block. Its width no longer changes it (unit 040 did).
     let index = quayside();
     let tree = Tree::from_index(&index);
-    let by_node = |l: &Layout| -> Vec<minimap_core::layout::Header> {
-        let mut v = l.headers.clone();
-        v.sort_by_key(|h| h.node);
-        v
+    let a = Layout::compute(&tree, &CARDS);
+    let count = files_below(&tree);
+    let header = |l: &Layout| {
+        let mut v = vec![None; tree.nodes.len()];
+        for h in &l.headers {
+            v[h.node] = Some(*h);
+        }
+        v.into_iter().map(Option::unwrap).collect::<Vec<_>>()
     };
-    let a = by_node(&Layout::compute(&tree, &CARDS));
-    let (mut held, mut changed) = (0, 0);
-    for f in index.files.iter().step_by(37) {
-        let grown = CARDS.quant.round(f.lines as usize) as u64 + 1;
-        let t = with_lines(&index, &f.path, grown);
-        for (ha, hb) in a.iter().zip(by_node(&Layout::compute(&t, &CARDS))) {
-            if ha.w == hb.w {
-                assert_eq!(ha.band, hb.band, "{:?}", tree.nodes[ha.node].path);
+    let before = header(&a);
+    let (mut held, mut held_new_width, mut passed) = (0, 0, 0);
+    // Add a file to every 7th directory that has files of its own, so the tree keeps its nodes.
+    for (n, node) in tree.nodes.iter().enumerate().step_by(7) {
+        if node.files.is_empty() {
+            continue;
+        }
+        let mut grown = index.clone();
+        let mut f = grown.files[node.files[0]].clone();
+        f.path = format!("{}/zz_added.clj", node.path);
+        grown.files.push(f);
+        let t = Tree::from_index(&grown);
+        assert_eq!(t.nodes.len(), tree.nodes.len());
+        let after = header(&Layout::compute(&t, &CARDS));
+        for (m, cm) in files_below(&t).into_iter().enumerate() {
+            let (hb, ha) = (before[m], after[m]);
+            if count_band(cm) == count_band(count[m]) {
+                assert_eq!(
+                    ha.band, hb.band,
+                    "{:?} after a file in {:?}",
+                    tree.nodes[m].path, node.path
+                );
                 held += 1;
+                held_new_width += usize::from(ha.w != hb.w);
             } else {
-                changed += 1;
+                assert_ne!(ha.band, hb.band);
+                passed += 1;
             }
         }
+        let _ = n;
     }
     eprintln!(
-        "blocks that kept their width and band: {held}; blocks that changed width: {changed}"
+        "blocks that kept their band: {held} ({held_new_width} of them with a new width); blocks whose count passed a step: {passed}"
     );
-    assert!(held > 1000, "{held}");
-    // Without name bands every block has one header row, and the cards then start one row lower than with bands.
+    assert!(
+        held > 10_000 && held_new_width > 10 && passed > 10,
+        "{held} {held_new_width} {passed}"
+    );
+    // Without name bands every block has one header row.
     let flat = Layout::compute(
         &tree,
         &LayoutConfig {
-            name_share: 0.0,
+            names: Names::None,
             ..CARDS
         },
     );
     assert!(flat.headers.iter().all(|h| h.band == 1));
+}
+
+#[test]
+fn count_bands_move_blocks_and_never_a_card_inside_its_grid() {
+    // Unit 062 changes the bands from the width rule of unit 040 to the count rule. This proves which tiles move on quayside.
+    let tree = Tree::from_index(&quayside());
+    let width = Layout::compute(
+        &tree,
+        &LayoutConfig {
+            names: Names::Width(NAME_SHARE),
+            ..CARDS
+        },
+    );
+    let count = Layout::compute(&tree, &CARDS);
+    let by_node = |l: &Layout| {
+        let mut v = l.headers.clone();
+        v.sort_by_key(|h| h.node);
+        v
+    };
+    let (hw, hc) = (by_node(&width), by_node(&count));
+    // 1. Every card keeps its place in its directory's file grid: its offset from the block's left and from the band's bottom.
+    for (f, file) in tree.files.iter().enumerate() {
+        let off = |l: &Layout, h: &[minimap_core::layout::Header]| {
+            let b = h[file.node];
+            (l.tiles[f].0 - b.x, l.tiles[f].1 - b.y - b.band)
+        };
+        assert_eq!(off(&width, &hw), off(&count, &hc), "{}", file.path);
+    }
+    // 2. A block whose band and whose descendants' bands held keeps its size and moves as a whole:
+    //    its cards and child blocks keep their offsets from its top-left.
+    let mut held = vec![false; tree.nodes.len()];
+    for n in (0..tree.nodes.len()).rev() {
+        held[n] = hw[n].band == hc[n].band && tree.nodes[n].kids.iter().all(|&k| held[k]);
+    }
+    let mut whole = 0;
+    for n in (0..tree.nodes.len()).filter(|&n| held[n]) {
+        assert_eq!(
+            (hw[n].w, hw[n].h),
+            (hc[n].w, hc[n].h),
+            "{:?}",
+            tree.nodes[n].path
+        );
+        for m in subtree_nodes(&tree, n) {
+            let rel = |h: &[minimap_core::layout::Header]| (h[m].x - h[n].x, h[m].y - h[n].y);
+            assert_eq!(
+                rel(&hw),
+                rel(&hc),
+                "{:?} in {:?}",
+                tree.nodes[m].path,
+                tree.nodes[n].path
+            );
+            for &f in &tree.nodes[m].files {
+                let rel = |l: &Layout, h: &[minimap_core::layout::Header]| {
+                    (l.tiles[f].0 - h[n].x, l.tiles[f].1 - h[n].y)
+                };
+                assert_eq!(rel(&width, &hw), rel(&count, &hc), "{}", tree.files[f].path);
+            }
+        }
+        whole += 1;
+    }
+    // 3. The counts: the root's band goes from 118 to 60 rows, so every card moves on the map.
+    let changed = (0..tree.nodes.len()).filter(|&n| hw[n].band != hc[n].band);
+    let (grew, shrank) = changed.fold((0, 0), |(g, s), n| {
+        if hc[n].band > hw[n].band {
+            (g + 1, s)
+        } else {
+            (g, s + 1)
+        }
+    });
+    let resized = (0..tree.nodes.len())
+        .filter(|&n| (hw[n].w, hw[n].h) != (hc[n].w, hc[n].h))
+        .count();
+    let moved = (0..tree.files.len())
+        .filter(|&f| width.tiles[f] != count.tiles[f])
+        .count();
+    let lift = hc[0].band - hw[0].band;
+    let lifted = (0..tree.files.len())
+        .filter(|&f| {
+            (
+                count.tiles[f].0 - width.tiles[f].0,
+                count.tiles[f].1 - width.tiles[f].1,
+            ) == (0, lift)
+        })
+        .count();
+    eprintln!(
+        "bands: {grew} grew, {shrank} shrank of {}; blocks resized: {resized}; blocks that moved as a whole: {whole}; \
+         cards moved: {moved} of {}, {lifted} of them only by the root band's {lift} rows; map {} x {} cells, was {} x {}",
+        tree.nodes.len(),
+        tree.files.len(),
+        count.w,
+        count.h,
+        width.w,
+        width.h
+    );
+    // Districts that kept their place under the root's band.
+    let districts: Vec<usize> = tree.nodes[0].kids.clone();
+    let kept = districts
+        .iter()
+        .filter(|&&d| (hw[d].x, hw[d].y - hw[0].band) == (hc[d].x, hc[d].y - hc[0].band))
+        .count();
+    eprintln!(
+        "districts that kept their place under the root's band: {kept} of {}",
+        districts.len()
+    );
+    assert_eq!((hw[0].band, hc[0].band), (118, 60));
+    assert_eq!((grew, shrank, resized, whole), (228, 90, 275, 119));
+    assert_eq!((moved, lifted, kept), (tree.files.len(), 15, 1));
+}
+
+/// The node and every node below it.
+fn subtree_nodes(tree: &Tree, node: usize) -> Vec<usize> {
+    let mut out = vec![];
+    let mut stack = vec![node];
+    while let Some(n) = stack.pop() {
+        out.push(n);
+        stack.extend(&tree.nodes[n].kids);
+    }
+    out
 }
 
 #[test]

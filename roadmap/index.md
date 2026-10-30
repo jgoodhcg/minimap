@@ -14,6 +14,8 @@ State on 2026-10-30:
 - The user runs `minimap-gui` beside Claude Code. The Claude Code hook (unit `011`) is installed at user level and feeds the trail, the glow, and the agent history.
 - Searches do not reach the map. The Claude Code session of 2026-10-30 has no Grep or Glob tool, and agents search and read through Bash, which unit `011` does not parse.
   None of the 815 payloads that the hook logged from 2026-10-07 to 2026-10-30 is a Grep payload.
+- Unit `062` (Milestone G12, item 2 below) is `done` on branch `heading-size`: directory names are sized by the count of files below them.
+  The G12 exit review is open; its GUI visual check waits for the user's consent.
 - The earlier notes of this section are in `Milestone Log` below.
 
 Next, ranked by WSJF on 2026-10-30. Cost of delay is business value + time criticality + risk reduction, each a Fibonacci estimate from 1 to 20; WSJF is the cost of delay over the job size.
@@ -22,8 +24,8 @@ An autonomous session takes the first item whose gate is open.
 | # | Item | CoD | Size | WSJF | Gate |
 |---|---|---|---|---|---|
 | 1 | Bash trail adapter: `grep`, `rg`, `cat`, and `sed -n` through Bash become `grep` and `read` events | 29 | 5 | 5.8 | The user lifts unit `011`'s "No Bash parsing" scope and adds `Bash` to the hook matcher. Then write the unit. |
-| 2 | Heading size by the count of all files below a directory (`Usage observations`) | 16 | 3 | 5.3 | Decided. Write the unit. It moves tiles, so it needs a test that proves which tiles move. |
-| 3 | Git base layer (`--base main`) | 16 | 3 | 5.3 | The layer color is open. Ties with item 2, which is decided. |
+| 2 | Heading size by the count of all files below a directory (`Usage observations`) | 16 | 3 | 5.3 | Unit `062` is `done`. The G12 exit review is open. |
+| 3 | Git base layer (`--base main`) | 16 | 3 | 5.3 | The layer color is open. Ties with item 2, which is done (unit `062`). |
 | 4 | Follow mode: the selection follows the agent's newest event | 10 | 2 | 5.0 | Write the unit. |
 | 5 | Stronger mark for noted files at the fit view | 10 | 2 | 5.0 | The user picks a glow or a dimmer map. |
 | 6 | Unit `060`: code in place (G10) | 24 | 5 | 4.8 | `ready` |
@@ -47,9 +49,11 @@ Open review items (not discussed):
 - Line-scaled cards move more than cards of one size, also with the generated cap. Mostly whole districts shift by one column.
   Rounded widths would cut the moves only a little; not adopted.
 - At the fit view of a real repo, few districts read as text and some are bars; the rest draw nothing: a narrow district cannot hold a readable name in its band.
-- Empty space: files fill only a small share of the map, and the name bands take a noticeable share of it.
+- Empty space: files fill only a small share of the map, and the name bands take a noticeable share of it (less since unit `062`).
 - A card name shows the same 10 to 13 characters at every zoom.
 - The heat color (`#e0529c`) stays until the user has looked at layers `4` and `5`.
+- Unit `062`: a name wider than its band is cut at its end, so a long compacted chain such as `src/quayside/reporting/` loses its last segment.
+  A cut in the middle (`src/…/reporting/`) is a candidate. The defaults that unit `062` took are in its Context.
 
 ## Direction
 
@@ -96,6 +100,7 @@ At each exit, stop and ask the user for review before the next milestone.
 | G9 | Usage quick fixes | `057` | Run `minimap-gui` on the real target repo beside a Claude Code session: click a note row to see its file on the map and click again to read it, sort the history oldest first, tell sessions apart by color, see `N` in the hint, and drag over the reader's text and copy it. |
 | G10 | Code in place | `060` | Run `minimap-gui` on the real target repo: zoom into a card past its shape until its code reads in place with syntax colors and line numbers, and press Enter to zoom to the selected file's code. |
 | G11 | The reader as a zoom level | `061` | Run `minimap-gui` on the real target repo beside a Claude Code session that guides a review: read each note beside its lines on the map, step through the notes with `n` and `N` without a separate reader, and select and copy code on the map. |
+| G12 | Heading size by count | `062` | Run `minimap-gui` on the real target repo: see each directory name sized by the count of files below it, so a parent's name is never smaller than its child's, and the large directories still name themselves at the fit view. |
 
 Every unit validates against the real target repo (`AGENTS.md` `Real-repo tests`). Committed tests use the fake `quayside` repo.
 
@@ -223,6 +228,7 @@ See individual `[ID]-[slug].md` files in this directory, and `archived/` for `do
 | `059` | Finish the G9 exit and publish the repo | G9 | done |
 | `060` | Code in place | G10 | ready |
 | `061` | The reader as a zoom level | G11 | draft |
+| `062` | Heading size by the count of files below | G12 | done |
 
 Real target repo details (path, exclusions) are in `.private/targets.md`. That file is git-ignored.
 
@@ -258,8 +264,7 @@ Map:
 
 - Heading size carries no meaning. A child directory such as `src/` can draw bigger than its parent. Size should encode one of: the child count with subdirectories, the depth in the tree, or the edit activity. The goal is waymarkers that help the visual cortex remember the codebase.
   Decided (the user, 2026-10-30): the count of all files below the directory, at every depth, not only its direct children.
-  Today the size uses no count: it is the largest at which the name spans 30 % of its block's width (unit `040`, `LayoutConfig::name_band`), so a short name draws bigger.
-  The header band's rows follow the name size, so the change moves tiles and needs a test that proves which tiles move.
+  Unit `062` (G12, 2026-10-30) sizes each name by the square root of that count. Unit `040` had sized it by its block's width, so a short name drew bigger.
 - Files with notes or highlights need a stronger mark at the fit view. Options: a glow on the marked cards, or a dimmer map around them.
 - An optional split: the map at the left and the reader at the right, with the tree and the panel in place, for a wide screen. On a laptop screen the reader keeps the map region. The split also moves the reader's wrap or cut point.
 - Highlight every file that a branch or a commit changed. This extends the git base layer idea above with commits as a second source.

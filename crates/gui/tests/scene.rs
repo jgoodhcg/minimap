@@ -219,25 +219,23 @@ fn a_directory_name_fades_from_200_points() {
 
 #[test]
 fn a_block_fitted_in_the_window_shows_its_name() {
-    // A zoom to a directory fits its block: its name spans 30 % of the window's width at most, and stays under the fade.
+    // A zoom to a directory fits its block. Its name grows with the square root of its count of files (unit 062),
+    // and its block grows about as fast, so every quayside name reads and stays under the fade, the root's too.
     let app = {
         let mut a = minimap_gui::GuiApp::new(common::quayside());
         a.set_region(common::region());
         a
     };
-    let mut checked = 0;
+    let (mut least, mut most) = (f32::MAX, 0f32);
     for (h, hd) in app.map.layout.headers.iter().enumerate() {
         let name = app.map.header_name(h);
-        if hd.depth == 0 || hd.w < 200 || name.chars().count() < 4 {
-            continue;
-        }
         let cam = app.camera_for(scene::Entry::Dir(hd.node));
         let size = app.map.name_size(h) * cam.zoom;
         assert!(size >= scene::TEXT_FROM, "{name} at {size}");
         assert_eq!(scene::fade(size), 1.0, "{name} at {size}");
-        checked += 1;
+        (least, most) = (least.min(size), most.max(size));
     }
-    assert!(checked > 10, "{checked}");
+    eprintln!("names after a zoom to their directory: {least:.1} to {most:.1} points");
 }
 
 #[test]

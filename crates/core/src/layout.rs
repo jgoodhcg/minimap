@@ -5,8 +5,8 @@
 //! It keeps the JavaScript operation order and uses `f64` for the area math, so the results match the mockups exactly.
 //! The layout is a function of the file tree and a [`LayoutConfig`] only. It takes no selection, layer, or view input.
 //! `CHARS` and `TILES` give every tile one size. `CARDS` makes each card as tall as its file's rounded line count (unit `039`),
-//! so for `CARDS` the tree's line counts are an input too. `CARDS` also sizes each directory name by its block's width,
-//! and gives the block a header band that holds the name (unit `040`). It caps a generated file's card at the height of
+//! so for `CARDS` the tree's line counts are an input too. `CARDS` also sizes each directory name by the count of files below it
+//! (unit `062`), and gives the block a header band that holds the name (unit `040`). It caps a generated file's card at the height of
 //! [`GEN_LINES`] lines (unit `041`), so for `CARDS` the tree's generated flags are an input too.
 
 use std::collections::HashMap;
@@ -57,6 +57,18 @@ pub enum Order {
     Name,
 }
 
+/// What sets a directory's name size and its block's header band ([`LayoutConfig::name_band`]).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Names {
+    /// Every block has [`LayoutConfig::head`] header rows, and names have no size.
+    None,
+    /// The count of files below the directory, at every depth (unit `062`), so a parent's name is never smaller than its child's.
+    Count,
+    /// The share of the block's width that the name spans (unit `040`), so a short name draws larger.
+    /// The stability report and the move tests compare with it.
+    Width(f64),
+}
+
 /// The layout constants (`docs/design.md` `Layout`).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LayoutConfig {
@@ -93,9 +105,8 @@ pub struct LayoutConfig {
     /// Line-scaled tiles (unit `039`): one line is this many points high at zoom 1, and a tile is a name row
     /// and a body of `ceil(quant(lines) * line_pt / py)` rows. Files flow down columns. 0 gives every tile one size.
     pub line_pt: f64,
-    /// Name bands (unit `040`): a directory's name is the largest size, in points at zoom 1, at which it spans this share
-    /// of its block's width, and its block's header band holds it. 0 gives every block [`LayoutConfig::head`] header rows.
-    pub name_share: f64,
+    /// Name bands: what sets a directory's name size, in points at zoom 1, and its block's header band that holds the name.
+    pub names: Names,
     /// Generated files (unit `041`): a generated file's line-scaled tile counts at most this many lines. 0 gives no cap.
     pub gen_lines: u64,
 }
@@ -140,7 +151,7 @@ impl LayoutConfig {
         order: Order::Tallest,
         round: Round::ALL,
         line_pt: 0.0,
-        name_share: 0.0,
+        names: Names::None,
         gen_lines: 0,
     };
 
@@ -169,7 +180,7 @@ impl LayoutConfig {
             max_depth: 2,
         },
         line_pt: 0.0,
-        name_share: 0.0,
+        names: Names::None,
         gen_lines: 0,
     };
 
@@ -201,7 +212,7 @@ impl LayoutConfig {
             max_depth: 2,
         },
         line_pt: LINE_PT,
-        name_share: NAME_SHARE,
+        names: Names::Count,
         gen_lines: GEN_LINES,
     };
 
@@ -251,19 +262,34 @@ impl LayoutConfig {
         }
     }
 
-    /// The header band of a block `w` cells wide whose header text (with its `/`) has `chars` characters (unit `040`):
-    /// the name size in points at zoom 1, and the band's rows. Without name bands, the size is 0 and the band is `head`.
-    /// The size is the largest at which the name spans [`LayoutConfig::name_share`] of the block's width,
-    /// at least [`NAME_MIN`] of the header row. The band is `ceil(BAND_K * size / py)` rows, at least `head`, rounded up by `quant`.
-    pub fn name_band(&self, w: i32, chars: usize) -> (f64, i32) {
-        if self.name_share <= 0.0 {
-            return (0.0, self.head);
-        }
-        let width = f64::from(w) * self.px as f64;
-        let fit = self.name_share * width / (chars.max(1) as f64 * NAME_ADVANCE);
-        let size = fit.max(NAME_MIN * f64::from(self.head) * self.py as f64);
-        let rows = ((BAND_K * size / self.py as f64).ceil() as i32).max(self.head);
-        (size, self.quant.round_i32(rows))
+    /// The header band of a block `w` cells wide whose header text (with its `/`) has `chars` characters,
+    /// with `files` files below it at every depth: the name size in points at zoom 1, and the band's rows.
+    /// Without name bands, the size is 0 and the band is `head`. The least size is [`NAME_MIN`] of the header row.
+    ///
+    /// - [`Names::Count`] (unit `062`): the least size times the square root of `files`, which counts at most [`NAME_CAP_FILES`].
+    ///   The band is `ceil(sqrt(files))` header rows, so it holds `BAND_K` times the size.
+    /// - [`Names::Width`] (unit `040`): the largest size at which the name spans the share of the block's width, at least the least size.
+    ///   The band is `ceil(BAND_K * size / py)` rows.
+    ///
+    /// The band is at least `head` rows and rounds up by `quant`.
+    pub fn name_band(&self, w: i32, chars: usize, files: usize) -> (f64, i32) {
+        let least = NAME_MIN * f64::from(self.head) * self.py as f64;
+        let (size, rows) = match self.names {
+            Names::None => return (0.0, self.head),
+            Names::Count => {
+                // `BAND_K * NAME_MIN` is 1. Integer math keeps the band exact when the count is a square.
+                let n = files.clamp(1, NAME_CAP_FILES);
+                let head = self.head.max(1) as usize;
+                (least * (n as f64).sqrt(), ceil_sqrt(n * head * head) as i32)
+            }
+            Names::Width(share) => {
+                let width = f64::from(w) * self.px as f64;
+                let fit = share * width / (chars.max(1) as f64 * NAME_ADVANCE);
+                let size = fit.max(least);
+                (size, (BAND_K * size / self.py as f64).ceil() as i32)
+            }
+        };
+        (size, self.quant.round_i32(rows.max(self.head)))
     }
 
     /// The rows between two tiles in a column: the pitch minus the drawn height of one-size tiles.
@@ -285,7 +311,7 @@ impl LayoutConfig {
 pub const LINE_PT: f64 = 1.0;
 /// A line-scaled tile's name row, in cells.
 pub const NAME_ROWS: i32 = 1;
-/// A directory name spans this share of its block's width on `CARDS` (unit `040`).
+/// A directory name spans this share of its block's width with [`Names::Width`] (unit `040`). `CARDS` used it until unit `062`.
 pub const NAME_SHARE: f64 = 0.30;
 /// A monospace glyph's advance as a share of its size, for the name sizes. FiraCode's is 0.6, as egui's default monospace is.
 pub const NAME_ADVANCE: f64 = 0.6;
@@ -293,6 +319,8 @@ pub const NAME_ADVANCE: f64 = 0.6;
 pub const NAME_MIN: f64 = 0.8;
 /// A header band is this many times its name size, before it rounds up to whole rows and a step.
 pub const BAND_K: f64 = 1.25;
+/// A directory name stops growing at this many files below it (unit `062`): 1,440 points at zoom 1, 100 times the least size.
+pub const NAME_CAP_FILES: usize = 10_000;
 /// A generated file's card on `CARDS` is as tall as a card of this many lines (unit `041`): 363 lines after the rounding, 21 body rows.
 pub const GEN_LINES: u64 = 300;
 
@@ -568,7 +596,7 @@ pub struct Header {
     pub y: i32,
     pub w: i32,
     pub h: i32,
-    /// The header band's rows at the block's top: `head`, or the name band of unit `040`.
+    /// The header band's rows at the block's top: `head`, or the name band (units `040` and `062`).
     pub band: i32,
     pub depth: usize,
     pub node: usize,
@@ -585,7 +613,7 @@ pub struct Layout {
     pub tile_h: Vec<i32>,
     /// One header per directory block, in placement order (preorder by shelf).
     pub headers: Vec<Header>,
-    /// Per node: the name size in points at zoom 1 (unit `040`), or 0 without name bands.
+    /// Per node: the name size in points at zoom 1 (units `040` and `062`), or 0 without name bands.
     pub name_size: Vec<f64>,
     pub w: i32,
     pub h: i32,
@@ -610,6 +638,8 @@ struct Plan {
     grid_h: Vec<i32>,
     /// Per file: its column in its node's grid, and its row offset from the grid's top.
     slot: Vec<(i32, i32)>,
+    /// Per node: the count of files below it, at every depth (unit `062`).
+    files: Vec<usize>,
     /// Per node: the header band's rows and the name size.
     band: Vec<i32>,
     name_size: Vec<f64>,
@@ -627,6 +657,7 @@ impl Layout {
             cap: vec![0; n],
             grid_h: vec![0; n],
             slot: vec![(0, 0); tree.files.len()],
+            files: vec![0; n],
             band: vec![0; n],
             name_size: vec![0.0; n],
             shelves: vec![vec![]; n],
@@ -658,8 +689,14 @@ fn ceil_div(a: usize, b: usize) -> usize {
     a.div_ceil(b)
 }
 
+/// The least `r` with `r * r >= x`.
+fn ceil_sqrt(x: usize) -> usize {
+    let r = x.isqrt();
+    if r * r < x { r + 1 } else { r }
+}
+
 /// `size` (`:103-118`). It needs the node's plan and the sizes of its children.
-/// It also sets the node's header band, which depends on the block's width only (unit `040`).
+/// It also sets the node's header band, from the count of files below the node (unit `062`), which `plan` sums bottom-up.
 fn size(tree: &Tree, p: &mut Plan, n: usize) -> Size {
     let c = &p.cfg;
     let node = &tree.nodes[n];
@@ -691,7 +728,7 @@ fn size(tree: &Tree, p: &mut Plan, n: usize) -> Size {
     };
     let w = c.tw.max(c.label(&node.name)).max(ind + fw.max(sw));
     // The header text is the name and `/`.
-    let (name_size, band) = c.name_band(w, node.name.chars().count() + 1);
+    let (name_size, band) = c.name_band(w, node.name.chars().count() + 1, p.files[n]);
     p.band[n] = band;
     p.name_size[n] = name_size;
     let s = Size {
@@ -745,6 +782,7 @@ fn plan(tree: &Tree, p: &mut Plan, n: usize) {
     let c = p.cfg;
     let node = &tree.nodes[n];
     let nf = node.files.len();
+    p.files[n] = nf + node.kids.iter().map(|&k| p.files[k]).sum::<usize>();
     let ind = if node.depth > 0 { c.ind } else { 0 };
     let cap = if c.round.cap { c.quant.round(nf) } else { nf };
     let mut fc = if nf > 0 {

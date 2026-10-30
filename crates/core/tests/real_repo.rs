@@ -364,6 +364,97 @@ fn cards_layout_on_the_live_index() {
 
 #[test]
 #[ignore = "needs MINIMAP_TARGET_REPO"]
+fn count_name_bands_on_the_target() {
+    // Unit 062: names sized by the count of files below each directory, against the width rule of unit 040.
+    // It prints numbers only, no paths.
+    use minimap_core::layout::{NAME_ADVANCE, NAME_SHARE, Names};
+    let (root, options) = target_options();
+    let tree = Tree::from_index(&Index::from_repo(&root, &options).unwrap());
+    let mut count = vec![0usize; tree.nodes.len()];
+    for n in (0..tree.nodes.len()).rev() {
+        let node = &tree.nodes[n];
+        count[n] = node.files.len() + node.kids.iter().map(|&k| count[k]).sum::<usize>();
+    }
+    let cards = LayoutConfig::CARDS;
+    let by_count = Layout::compute(&tree, &cards);
+    let by_width = Layout::compute(
+        &tree,
+        &LayoutConfig {
+            names: Names::Width(NAME_SHARE),
+            ..cards
+        },
+    );
+    let by_node = |l: &Layout| {
+        let mut v = l.headers.clone();
+        v.sort_by_key(|h| h.node);
+        v
+    };
+    let (hc, hw) = (by_node(&by_count), by_node(&by_width));
+    for (n, node) in tree.nodes.iter().enumerate() {
+        let r = (1..).find(|r| r * r >= count[n].max(1)).unwrap();
+        assert_eq!(hc[n].band, cards.quant.round(r) as i32);
+        for &k in &node.kids {
+            assert!(by_count.name_size[k] <= by_count.name_size[n]);
+        }
+    }
+    // Every card keeps its place in its directory's grid; only blocks move.
+    for (f, file) in tree.files.iter().enumerate() {
+        let off = |l: &Layout, h: &[minimap_core::layout::Header]| {
+            let b = h[file.node];
+            (l.tiles[f].0 - b.x, l.tiles[f].1 - b.y - b.band)
+        };
+        assert_eq!(off(&by_width, &hw), off(&by_count, &hc));
+    }
+    common::assert_no_card_or_header_overlap(&tree, &by_count);
+    common::assert_containment(&tree, &by_count);
+    common::assert_deterministic(&Index::from_repo(&root, &options).unwrap(), &cards);
+    let stats = |l: &Layout, h: &[minimap_core::layout::Header]| {
+        let bands: i64 = h.iter().map(|h| i64::from(h.band) * i64::from(h.w)).sum();
+        let larger_kids = tree
+            .nodes
+            .iter()
+            .enumerate()
+            .flat_map(|(n, node)| node.kids.iter().map(move |&k| (n, k)))
+            .filter(|&(n, k)| l.name_size[k] > l.name_size[n])
+            .count();
+        let cut = h
+            .iter()
+            .filter(|h| {
+                let chars = tree.nodes[h.node].name.chars().count() + 1;
+                chars as f64 * NAME_ADVANCE * l.name_size[h.node] > f64::from(h.w) * 8.0
+            })
+            .count();
+        format!(
+            "{} x {} cells, bands {:.1} % of the map, root band {} rows, {larger_kids} names larger than their parent's, {cut} names cut",
+            l.w,
+            l.h,
+            100.0 * bands as f64 / (f64::from(l.w) * f64::from(l.h)),
+            h[0].band
+        )
+    };
+    let moved = (0..tree.files.len())
+        .filter(|&f| by_width.tiles[f] != by_count.tiles[f])
+        .count();
+    let changed = (0..tree.nodes.len())
+        .filter(|&n| hw[n].band != hc[n].band)
+        .count();
+    let districts = &tree.nodes[0].kids;
+    let kept = districts
+        .iter()
+        .filter(|&&d| (hw[d].x, hw[d].y - hw[0].band) == (hc[d].x, hc[d].y - hc[0].band))
+        .count();
+    eprintln!("width bands (unit 040): {}", stats(&by_width, &hw));
+    eprintln!("count bands (unit 062): {}", stats(&by_count, &hc));
+    eprintln!(
+        "{changed} of {} bands changed; {moved} of {} cards moved; {kept} of {} districts kept their place under the root band",
+        tree.nodes.len(),
+        tree.files.len(),
+        districts.len()
+    );
+}
+
+#[test]
+#[ignore = "needs MINIMAP_TARGET_REPO"]
 fn the_loader_computes_every_file_of_the_target() {
     use minimap_core::details::{Details, Loader, compute_file};
     use minimap_core::syntax::too_long;

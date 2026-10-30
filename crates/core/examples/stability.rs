@@ -7,7 +7,8 @@
 //! It prints a Markdown report with numbers only, no paths.
 //! With `--variants`, it compares the unrounded `CHARS` packing with the rounding and order variants of unit `027`,
 //! and applies the adoption rule.
-//! With `--cards`, it compares `CARDS` with one card size and the line-scaled `CARDS` of unit `039`.
+//! With `--cards`, it compares `CARDS` with one card size and the line-scaled `CARDS` of unit `039`,
+//! with the name bands by block width (unit `040`) and by the count of files below each directory (unit `062`).
 //! It reads each file's line count at each sampled commit from its blob, once per blob ID.
 //! It marks generated files at each commit (unit `041`): the built-in names, the commit's `.gitattributes` files, and the `--generated` rules.
 
@@ -19,7 +20,7 @@ use anyhow::{Context, Result, bail};
 
 use minimap_core::generated::{Marks, is_attributes_file};
 use minimap_core::index::{count_lines, exclude_set, is_binary, repo_root};
-use minimap_core::layout::{Order, Quant, Round};
+use minimap_core::layout::{NAME_SHARE, Names, Order, Quant, Round};
 use minimap_core::stability::{Moves, Positions, compare};
 use minimap_core::{Layout, LayoutConfig, Tree};
 
@@ -88,13 +89,18 @@ struct Sample {
 
 fn configs(variants: bool, cards: bool) -> Vec<(String, LayoutConfig)> {
     if cards {
-        // Unit 039 compared one card size with line-scaled cards; unit 040 added the name bands; unit 041 the generated cap.
-        let uncapped = LayoutConfig {
-            gen_lines: 0,
+        // Unit 039 compared one card size with line-scaled cards; unit 040 added the name bands by width; unit 041 the generated cap.
+        // Unit 062 sizes the names by the count of files below each directory.
+        let widths = LayoutConfig {
+            names: Names::Width(NAME_SHARE),
             ..LayoutConfig::CARDS
         };
+        let uncapped = LayoutConfig {
+            gen_lines: 0,
+            ..widths
+        };
         let flat = LayoutConfig {
-            name_share: 0.0,
+            names: Names::None,
             ..uncapped
         };
         let rounded_w = Round {
@@ -110,21 +116,25 @@ fn configs(variants: bool, cards: bool) -> Vec<(String, LayoutConfig)> {
                 },
             ),
             ("CARDS, line-scaled".to_string(), flat),
-            ("CARDS, line-scaled, name bands".to_string(), uncapped),
+            ("CARDS, line-scaled, width bands".to_string(), uncapped),
             (
-                "CARDS, line-scaled, name bands, generated cap".to_string(),
+                "CARDS, line-scaled, width bands, generated cap".to_string(),
+                widths,
+            ),
+            (
+                "CARDS, line-scaled, count bands, generated cap".to_string(),
                 LayoutConfig::CARDS,
             ),
             // Measured for the G2 review, not adopted: knobs that the layout already has.
             (
-                "line-scaled, name bands, name order".to_string(),
+                "line-scaled, count bands, name order".to_string(),
                 LayoutConfig {
                     order: Order::Name,
                     ..LayoutConfig::CARDS
                 },
             ),
             (
-                "line-scaled, name bands, widths rounded".to_string(),
+                "line-scaled, count bands, widths rounded".to_string(),
                 LayoutConfig {
                     round: rounded_w,
                     ..LayoutConfig::CARDS

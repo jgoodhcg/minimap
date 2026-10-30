@@ -68,6 +68,8 @@ for a little more map area. New directories and blocks that pass a step still mo
 Unit `039` measured `CARDS` over the same kind of history: line-scaled cards move much more than cards of one size, and every card moved in the year.
 Most moves shift whole districts by one column, because a district's width changes. Name order and rounded widths cut the moves only a little, so neither was adopted.
 Unit `041` capped generated files, which halved the summed card moves and made the map much shorter.
+Unit `062` sized names by the count of files below each directory: the change moved every card once, and only as whole blocks.
+Over a year of the real repo, count bands move a little more than width bands, for a smaller map.
 The stability reports stay under `.private/`.
 
 ## Layout ("Districts")
@@ -102,7 +104,7 @@ Since unit `039` its cards are as tall as their files' lines, and files flow dow
 | `round` | capacity; height at depth 1–2 | none | as `CHARS` | What rounds up: each directory's file-grid capacity, and the height of blocks at depth 1 and 2 |
 | `order` | tallest first | tallest first | tallest first | Child order before packing |
 | `line_pt` | 0 | 0 | 1 | Points per line at zoom 1 for line-scaled cards; 0 gives every tile one size |
-| `name_share` | 0 | 0 | 0.30 | The share of its block's width that a directory name spans; 0 gives every block `HEAD` header rows |
+| `names` | none | none | count | What sets a directory's name size: none gives every block `HEAD` header rows; count is the count of files below the directory (unit `062`) |
 | `gen_lines` | 0 | 0 | 300 | A generated file's line-scaled card counts at most this many lines; 0 gives no cap |
 
 `CHARS` file columns: `min(cap, max(ceil(sqrt(cap * 1.1)), ceil((label width - IND) / TW)))`, where `cap` is the file count `nf` rounded up to a step.
@@ -132,13 +134,19 @@ Block width is `max(TW, label width, IND + max(file grid, widest shelf))`.
 - A generated card counts at most `gen_lines` (300) lines: `step(300)` is 363 lines, so its body is 21 rows and the card is 396 points high.
 - The index keeps the flag (`IndexFile::generated`, `"g"` in the JSON when it differs from the built-in list). The TUI does not use it.
 
-`CARDS` header bands (unit `040`):
+`CARDS` header bands (unit `040`, sized by count since unit `062`):
 
-- A directory's name size, in points at zoom 1, is the largest at which its header text (the name and `/`) spans `name_share` (30 %) of its block's width,
-  with an advance of 0.6 of the size, as FiraCode's. It is at least 0.8 × the header row (14.4 points).
-- The block's header band has `ceil(1.25 × name size / PY)` rows, at least `HEAD`, rounded up to a `Growth(1.25)` step. The block's files and child blocks start below it.
-- The band depends on the block's width and name only, and the width does not depend on the band, so the layout stays one bottom-up pass.
-  A block that keeps its width keeps its band.
+- A directory's name size encodes the count `n` of all files below it, at every depth, so a parent's name is never smaller than its child's (the user's decision, 2026-10-30).
+  The count includes hidden files, generated files, and allowlisted ignored files, because the tree holds them whatever the toggles show.
+- The size, in points at zoom 1, is `14.4 × sqrt(n)`: 0.8 × the header row times the square root of the count. On log-log axes it is a straight line
+  from 14.4 points at 1 file to the cap of 1,440 points (100 times the floor) at 10,000 files. A larger count keeps the cap.
+  So 10 times the files give a name about 3.2 times as large, and 100 times the files a name 10 times as large.
+- The block's header band has `ceil(sqrt(n))` rows, which hold 1.25 × the name size, at least `HEAD`, rounded up to a `Growth(1.25)` step.
+  The band changes only when the count passes a square of a step: 1, 4, 9, 16, 25, 49, 81, 144, 225, and so on. The block's files and child blocks start below it.
+- `plan` sums the counts bottom-up, so the layout stays one bottom-up pass. The band does not depend on the block's width or the name's length.
+- A name wider than its band is cut with `…` (see `GUI (prototype)`). On quayside the cut names keep at least 18 characters: long compacted chains such as `src/quayside/reporting/`.
+- Unit `040` sized a name by its block's width: the largest size at which the name spanned 30 % of the block, with an advance of 0.6 of the size.
+  A short name then drew larger, and a child could draw larger than its parent (34 cases on quayside). `Names::Width` keeps that rule for the stability report.
 
 Packing rule for each child `s`, in sorted order (`v3:134-141`):
 
@@ -663,7 +671,7 @@ Detail levels, by the card's width `w` on the screen. Each level adds to the lev
   cut with `…` to the band's width. A 1-point rule in `#26313c` runs along the band's bottom, from the block's left to one cell before its right edge; the root has none.
   No name covers a card. Root and district names follow the same rules as other names.
 - A directory name over 200 points on the screen fades out over the next 50 % (to 0 at 300 points), so a name never fills the window. The breadcrumb still names the place.
-  A block fitted in the window gives its name about `776 / chars` points, so after a zoom to a directory its name shows.
+  After a zoom to a directory its name shows: a block grows about as fast as the square root of its count, as its name does. On quayside every name is 14 to 136 points then.
 - At the fit view of a large repo, most directory names draw as bars, and a narrow district cannot name itself:
   a district a few points wide has no room for a 7-point name of 8 characters, which is 34 points wide.
 - Card geometry, from the card width, so a zoom or a toggle never moves an element inside it: padding `p` is 6 % of the width at the sides.
